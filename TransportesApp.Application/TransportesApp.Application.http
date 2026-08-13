@@ -1,0 +1,6 @@
+@TransportesApp.Application_HostAddress = http://localhost:5052
+
+GET {{TransportesApp.Application_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

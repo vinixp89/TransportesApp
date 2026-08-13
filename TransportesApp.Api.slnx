@@ -1,0 +1,14 @@
+<Solution>
+  <Project Path="TransportesApp.Api/TransportesApp.Api.csproj">
+    <BuildDependency Project="TransportesApp.Application/TransportesApp.Application.csproj" />
+    <BuildDependency Project="TransportesApp.Infrastructure/TransportesApp.Infrastructure.csproj" />
+  </Project>
+  <Project Path="TransportesApp.Application/TransportesApp.Application.csproj">
+    <BuildDependency Project="TransportesApp.Domain/TransportesApp.Domain.csproj" />
+  </Project>
+  <Project Path="TransportesApp.Domain/TransportesApp.Domain.csproj" />
+  <Project Path="TransportesApp.Infrastructure/TransportesApp.Infrastructure.csproj">
+    <BuildDependency Project="TransportesApp.Application/TransportesApp.Application.csproj" />
+    <BuildDependency Project="TransportesApp.Domain/TransportesApp.Domain.csproj" />
+  </Project>
+</Solution>
