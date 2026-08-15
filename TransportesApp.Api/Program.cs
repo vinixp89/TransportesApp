@@ -1,5 +1,6 @@
 
 using Microsoft.EntityFrameworkCore;
+using TransportesApp.Application.Services;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
 using TransportesApp.Infrastructure.Repositories;
@@ -23,7 +24,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
             builder.Services.AddScoped<ICorridaRepository, CorridaRepository>();
             builder.Services.AddScoped<IMotoristaRepository, MotoristaRepository>();
-
+            builder.Services.AddScoped<ClienteService>();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();

@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using TransportesApp.Domain.Entities;
-using TransportesApp.Domain.Interfaces;
-using TransportesApp.Domain.ValueObjects;
+using TransportesApp.Application.DTOs;
+using TransportesApp.Application.Services;
 
 namespace TransportesApp.Api.Controllers
 {
@@ -9,69 +8,29 @@ namespace TransportesApp.Api.Controllers
     [Route("api/[controller]")]
     public class ClientesController : ControllerBase
     {
+        private readonly ClienteService _clienteService;
 
-        private readonly IClienteRepository _clienteRepository;
-
-        public ClientesController(IClienteRepository clienteRepository)
-        
+        public ClientesController(ClienteService clienteService)
         {
-
-            _clienteRepository = clienteRepository;
-        
-        
+            _clienteService = clienteService;
         }
 
         [HttpPost]
-        public async Task<IActionResult> Criar()
+        public async Task<IActionResult> Criar([FromBody] CriarClienteRequest request)
         {
-
-            var endereco = new Endereco
-            (
-                logradouro: "Rua Das Flores",
-                numero: "123",
-                bairro: "centro",
-                cidade: "Nova Iguaçu",
-                estado: "RJ",
-                latitude: - 22.7556,
-                longitude: -43.4603
-
-
-
-            );
-            var cliente = new Cliente
-            (
-
-
-                nome: "Cliente Teste",
-                telefone: "21999999999",
-                email: "teste@exemplo.com",
-                endereco: endereco
-
-
-
-             );
-
-            await _clienteRepository.AdicionarAsync(cliente);
-
+            var cliente = await _clienteService.CriarAsync(request);
             return Ok(cliente);
         }
 
         [HttpGet("{id}")]
-
         public async Task<IActionResult> ObterPorId(Guid id)
         {
-
-            var cliente = await _clienteRepository.ObterPorIdAsync(id);
+            var cliente = await _clienteService.ObterPorIdAsync(id);
 
             if (cliente is null)
                 return NotFound();
 
             return Ok(cliente);
-        
-        
-        
         }
-
-
     }
 }
