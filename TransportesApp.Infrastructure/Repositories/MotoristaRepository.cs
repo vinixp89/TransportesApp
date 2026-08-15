@@ -13,9 +13,13 @@ namespace TransportesApp.Infrastructure.Repositories
         private readonly AppDbContext _context;
 
 
+        public MotoristaRepository(AppDbContext context)
+        {
+            _context = context;
+        }
 
-    
-    public async Task<Motorista?> ObterPorIdAsync(Guid id)
+
+        public async Task<Motorista?> ObterPorIdAsync(Guid id)
         {
 
             return await _context.Motoristas
