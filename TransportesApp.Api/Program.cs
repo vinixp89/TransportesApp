@@ -25,7 +25,8 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<IMotoristaRepository, MotoristaRepository>();
 
 
-
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
 
@@ -33,6 +34,9 @@ namespace TransportesApp.Api
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
+                app.MapOpenApi();
+                app.UseSwagger();
+                app.UseSwaggerUI();
             }
 
             app.UseHttpsRedirection();

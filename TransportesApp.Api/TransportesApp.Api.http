@@ -1,6 +1,7 @@
-@TransportesApp.Api_HostAddress = http://localhost:5249
+@TransportesApp.Api_HostAddress = https://localhost:7176
 
-GET {{TransportesApp.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Criar cliente
+POST {{TransportesApp.Api_HostAddress}}/api/Clientes
 
-###
+### Buscar cliente por Id (troca o GUID depois de testar o POST)
+GET {{TransportesApp.Api_HostAddress}}/api/Clientes/00000000-0000-0000-0000-000000000000
