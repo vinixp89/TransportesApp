@@ -14,6 +14,8 @@
         public double Latitude { get; }
         public double Longitude { get; }
 
+        private Endereco() { }
+
         public Endereco(string logradouro, string numero,string bairro, string cidade,string estado,double latitude,double longitude, string? complemento =null)
         
         {

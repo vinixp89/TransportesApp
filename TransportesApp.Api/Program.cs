@@ -1,4 +1,9 @@
 
+using Microsoft.EntityFrameworkCore;
+using TransportesApp.Domain.Interfaces;
+using TransportesApp.Infrastructure.Data;
+using TransportesApp.Infrastructure.Repositories;
+
 namespace TransportesApp.Api
 {
     public class Program
@@ -12,6 +17,15 @@ namespace TransportesApp.Api
             builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
+
+            builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
+            builder.Services.AddScoped<ICorridaRepository, CorridaRepository>();
+            builder.Services.AddScoped<IMotoristaRepository, MotoristaRepository>();
+
+
+
 
             var app = builder.Build();
 

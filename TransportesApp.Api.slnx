@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Itens de Solução/">
+    <File Path="Directory.Build.props" />
+  </Folder>
   <Project Path="TransportesApp.Api/TransportesApp.Api.csproj">
     <BuildDependency Project="TransportesApp.Application/TransportesApp.Application.csproj" />
     <BuildDependency Project="TransportesApp.Infrastructure/TransportesApp.Infrastructure.csproj" />

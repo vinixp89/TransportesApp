@@ -30,6 +30,20 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(c => c.DataSolicitacao)
                 .IsRequired();
 
+
+            builder.HasOne<Cliente>()
+                .WithMany()
+                .HasForeignKey(c => c.ClienteId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne<Motorista>()
+                .WithMany()
+                .HasForeignKey(c=>c.MotoristaId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+
+
             // Origem — owned type, prefixo "Origem_" nas colunas
             builder.OwnsOne(c => c.Origem, origem =>
             {
