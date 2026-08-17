@@ -30,7 +30,7 @@ namespace TransportesApp.Domain.Entities
              Guid? pacoteCorridasId)
         {
 
-            if (tipoConsumo == TipoConsumo.Pacote && PacoteCorridasId is null)
+            if (tipoConsumo == TipoConsumo.Pacote && pacoteCorridasId is null)
                 throw new ArgumentException("Corrida por pacote  precisa informa  o PacoteCorridasId");
 
             Id = Guid.NewGuid();

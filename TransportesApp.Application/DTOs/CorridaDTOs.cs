@@ -50,4 +50,10 @@ namespace TransportesApp.Application.DTOs
             StatusCorrida Status,
             DateTime DataSolicitacao
         );
+
+    public record AtribuirMotoristaRequest(Guid MotoristaId);
+
+    public record FinalizarCorridaRequest(double DistanciaReal);
+
+    public record FinalizarCorridaResponse(bool EstouroFaixa,CorridaResponse Corrida);
 }

@@ -43,6 +43,62 @@ namespace TransportesApp.Application.Services
             return corrida is null ? null : MapearParaResponse(corrida);
         }
 
+        public async Task<CorridaResponse?> AtribuirMotoristaAsync(Guid corridaId, AtribuirMotoristaRequest request)
+        {
+            var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
+
+            if (corrida is null)
+                return null;
+
+            corrida.AtribuirMotorista(request.MotoristaId);
+
+            await _corridaRepository.AtualizarAsync(corrida);
+
+            return MapearParaResponse(corrida);
+        }
+
+        public async Task<CorridaResponse?> IniciarViagemAsync(Guid corridaId)
+        {
+            var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
+
+            if (corrida is null)
+                return null;
+
+            corrida.IniciarViagem();
+
+            await _corridaRepository.AtualizarAsync(corrida);
+
+            return MapearParaResponse(corrida);
+        }
+
+        public async Task<FinalizarCorridaResponse?> FinalizarAsync(Guid corridaId, FinalizarCorridaRequest request)
+        {
+            var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
+
+            if (corrida is null)
+                return null;
+
+            var estourouFaixa = corrida.FinalizarCorrida(request.DistanciaReal);
+
+            await _corridaRepository.AtualizarAsync(corrida);
+
+            return new FinalizarCorridaResponse(estourouFaixa, MapearParaResponse(corrida));
+        }
+
+        public async Task<CorridaResponse?> CancelarAsync(Guid corridaId)
+        {
+            var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
+
+            if (corrida is null)
+                return null;
+
+            corrida.Cancelar();
+
+            await _corridaRepository.AtualizarAsync(corrida);
+
+            return MapearParaResponse(corrida);
+        }
+
         private static Endereco MapearEndereco(EnderecoRequest request)
         {
             return new Endereco(
