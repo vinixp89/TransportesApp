@@ -25,6 +25,8 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ICorridaRepository, CorridaRepository>();
             builder.Services.AddScoped<IMotoristaRepository, MotoristaRepository>();
             builder.Services.AddScoped<ClienteService>();
+            builder.Services.AddScoped<MotoristaService>();
+            builder.Services.AddScoped<CorridaService>();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();

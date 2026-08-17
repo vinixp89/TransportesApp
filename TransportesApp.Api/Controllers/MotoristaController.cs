@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using TransportesApp.Domain.Entities;
-using TransportesApp.Domain.Interfaces;
+using TransportesApp.Application.DTOs;
+using TransportesApp.Application.Services;
 
 namespace TransportesApp.Api.Controllers
 {
@@ -8,32 +8,24 @@ namespace TransportesApp.Api.Controllers
     [Route("api/[controller]")]
     public class MotoristasController : ControllerBase
     {
-        private readonly IMotoristaRepository _motoristaRepository;
+        private readonly MotoristaService _motoristaService;
 
-        public MotoristasController(IMotoristaRepository motoristaRepository)
+        public MotoristasController(MotoristaService motoristaService)
         {
-            _motoristaRepository = motoristaRepository;
+            _motoristaService = motoristaService;
         }
 
         [HttpPost]
-        public async Task<IActionResult> Criar()
+        public async Task<IActionResult> Criar([FromBody] CriarMotoristaRequest request)
         {
-            var motorista = new Motorista(
-                usuarioId: Guid.NewGuid(),
-                cnh: "12345678900",
-                placaVeiculo: "ABC1D23",
-                modeloVeiculo: "Fiat Uno"
-            );
-
-            await _motoristaRepository.AdicionarAsync(motorista);
-
+            var motorista = await _motoristaService.CriarAsync(request);
             return Ok(motorista);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> ObterPorId(Guid id)
         {
-            var motorista = await _motoristaRepository.ObterPorIdAsync(id);
+            var motorista = await _motoristaService.ObterPorIdAsync(id);
 
             if (motorista is null)
                 return NotFound();
