@@ -9,6 +9,7 @@ using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
 using TransportesApp.Infrastructure.Repositories;
+using Microsoft.OpenApi;
 
 namespace TransportesApp.Api
 {
@@ -34,7 +35,22 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<CorridaService>();
 
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    Description = "Digite: Bearer {seu token}"
+                });
+
+                options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+                {
+                    [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+                });
+            });
+
             builder.Services.AddIdentity<Usuario, IdentityRole<Guid>>(options =>
             {
                 options.Password.RequireDigit = true;

@@ -14,18 +14,13 @@ namespace TransportesApp.Domain.ValueObjects
 
         public decimal PrecoPacote10 { get; }
 
-        public FaixaDistancia(CorFaixa cor, double KmMinimo ,double? KmMaximo, decimal precoAvulso, decimal precoPacote)
+        public FaixaDistancia(CorFaixa cor, double kmMinimo, double? kmMaximo, decimal precoAvulso, decimal precoPacote)
         {
-
             Cor = cor;
-            KmMinimo = KmMinimo;
-            KmMaximo = KmMaximo;
+            KmMinimo = kmMinimo;
+            KmMaximo = kmMaximo;
             PrecoAvulso = precoAvulso;
-            PrecoPacote10 = PrecoPacote10;
-
-        
-        
-        
+            PrecoPacote10 = precoPacote;
         }
 
         public bool Contem(double km) => km >= KmMinimo && (KmMaximo is null || km <= KmMaximo);

@@ -43,6 +43,13 @@ namespace TransportesApp.Application.Services
             return corrida is null ? null : MapearParaResponse(corrida);
         }
 
+        public async Task<IEnumerable<CorridaResponse>> ListarAsync()
+        {
+            var corridas = await _corridaRepository.ListarAsync();
+
+            return corridas.Select(MapearParaResponse);
+        }
+
         public async Task<CorridaResponse?> AtribuirMotoristaAsync(Guid corridaId, AtribuirMotoristaRequest request)
         {
             var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);

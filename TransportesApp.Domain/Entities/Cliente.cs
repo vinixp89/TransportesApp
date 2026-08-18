@@ -10,6 +10,7 @@ namespace TransportesApp.Domain.Entities
             RegexOptions.Compiled);
 
         public Guid Id { get; private set; }
+        public Guid UsuarioId { get; private set; }
         public string Nome { get; private set; }
         public string Telefone { get; private set; }
         public string Email { get; private set; }
@@ -19,7 +20,7 @@ namespace TransportesApp.Domain.Entities
 
         protected Cliente() { }
 
-        public Cliente(string nome, string telefone, string email, Endereco endereco)
+        public Cliente(Guid usuarioId, string nome, string telefone, string email, Endereco endereco)
         {
             if (string.IsNullOrWhiteSpace(nome))
                 throw new ArgumentException("Nome é obrigatório.");
@@ -34,6 +35,7 @@ namespace TransportesApp.Domain.Entities
                 throw new ArgumentException("Endereço é obrigatório.");
 
             Id = Guid.NewGuid();
+            UsuarioId = usuarioId;
             Nome = nome;
             Telefone = telefone;
             Email = email;

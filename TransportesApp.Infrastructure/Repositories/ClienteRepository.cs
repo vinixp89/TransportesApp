@@ -20,12 +20,17 @@ namespace TransportesApp.Infrastructure.Repositories
         
         }
 
-        public async Task<Cliente?> ObterPorIdAsync(Guid id) 
+        public async Task<Cliente?> ObterPorIdAsync(Guid id)
         {
 
             return await _context.Clientes
                   .FirstOrDefaultAsync(c => c.Id == id);
-        
+
+        }
+
+        public async Task<IEnumerable<Cliente>> ListarAsync()
+        {
+            return await _context.Clientes.ToListAsync();
         }
 
         public async Task AdicionarAsync(Cliente cliente)

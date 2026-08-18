@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using TransportesApp.Application.DTOs;
 using TransportesApp.Application.Services;
 
@@ -6,6 +8,7 @@ namespace TransportesApp.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ClientesController : ControllerBase
     {
         private readonly ClienteService _clienteService;
@@ -18,11 +21,21 @@ namespace TransportesApp.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> Criar([FromBody] CriarClienteRequest request)
         {
-            var cliente = await _clienteService.CriarAsync(request);
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.CriarAsync(request, usuarioId);
             return Ok(cliente);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet]
+        public async Task<IActionResult> Listar()
+        {
+            var clientes = await _clienteService.ListarAsync();
+            return Ok(clientes);
+        }
+
+        [HttpGet("{id:guid}")]
         public async Task<IActionResult> ObterPorId(Guid id)
         {
             var cliente = await _clienteService.ObterPorIdAsync(id);

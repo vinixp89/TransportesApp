@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using TransportesApp.Application.DTOs;
 using TransportesApp.Application.Services;
 
@@ -6,6 +7,7 @@ namespace TransportesApp.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class CorridasController : ControllerBase
     {
         private readonly CorridaService _corridaService;
@@ -22,7 +24,14 @@ namespace TransportesApp.Api.Controllers
             return Ok(corrida);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet]
+        public async Task<IActionResult> Listar()
+        {
+            var corridas = await _corridaService.ListarAsync();
+            return Ok(corridas);
+        }
+
+        [HttpGet("{id:guid}")]
         public async Task<IActionResult> ObterPorId(Guid id)
         {
             var corrida = await _corridaService.ObterPorIdAsync(id);

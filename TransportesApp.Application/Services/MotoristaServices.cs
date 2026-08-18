@@ -13,10 +13,10 @@ namespace TransportesApp.Application.Services
             _motoristaRepository = motoristaRepository;
         }
 
-        public async Task<MotoristaResponse> CriarAsync(CriarMotoristaRequest request)
+        public async Task<MotoristaResponse> CriarAsync(CriarMotoristaRequest request, Guid usuarioId)
         {
             var motorista = new Motorista(
-                usuarioId: request.UsuarioId,
+                usuarioId: usuarioId,
                 cnh: request.Cnh,
                 placaVeiculo: request.PlacaVeiculo,
                 modeloVeiculo: request.ModeloVeiculo
@@ -32,6 +32,20 @@ namespace TransportesApp.Application.Services
             var motorista = await _motoristaRepository.ObterPorIdAsync(id);
 
             return motorista is null ? null : MapearParaResponse(motorista);
+        }
+
+        public async Task<IEnumerable<MotoristaResponse>> ListarAsync()
+        {
+            var motoristas = await _motoristaRepository.ListarAsync();
+
+            return motoristas.Select(MapearParaResponse);
+        }
+
+        public async Task<IEnumerable<MotoristaResponse>> ListarDisponiveisAsync()
+        {
+            var motoristas = await _motoristaRepository.ListarDisponiveisAsync();
+
+            return motoristas.Select(MapearParaResponse);
         }
 
         private static MotoristaResponse MapearParaResponse(Motorista motorista)

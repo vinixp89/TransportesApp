@@ -14,7 +14,7 @@ namespace TransportesApp.Application.Services
             _clienteRepository = clienteRepository;
         }
 
-        public async Task<ClienteResponse> CriarAsync(CriarClienteRequest request)
+        public async Task<ClienteResponse> CriarAsync(CriarClienteRequest request, Guid usuarioId)
         {
             var endereco = new Endereco(
                 logradouro: request.Logradouro,
@@ -28,6 +28,7 @@ namespace TransportesApp.Application.Services
             );
 
             var cliente = new Cliente(
+                usuarioId: usuarioId,
                 nome: request.Nome,
                 telefone: request.Telefone,
                 email: request.Email,
@@ -46,10 +47,18 @@ namespace TransportesApp.Application.Services
             return cliente is null ? null : MapearParaResponse(cliente);
         }
 
+        public async Task<IEnumerable<ClienteResponse>> ListarAsync()
+        {
+            var clientes = await _clienteRepository.ListarAsync();
+
+            return clientes.Select(MapearParaResponse);
+        }
+
         private static ClienteResponse MapearParaResponse(Cliente cliente)
         {
             return new ClienteResponse(
                 cliente.Id,
+                cliente.UsuarioId,
                 cliente.Nome,
                 cliente.Telefone,
                 cliente.Email,

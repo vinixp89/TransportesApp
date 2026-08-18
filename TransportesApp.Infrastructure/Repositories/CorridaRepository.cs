@@ -25,9 +25,15 @@ namespace TransportesApp.Infrastructure.Repositories
         {
             return await _context.Corridas
             .FirstOrDefaultAsync(c=>c.Id == id);
-        
-        
+
+
         }
+
+        public async Task<IEnumerable<Corrida>> ListarAsync()
+        {
+            return await _context.Corridas.ToListAsync();
+        }
+
         public async Task AdicionarAsync(Corrida corrida)
         {
             await _context.Corridas.AddAsync(corrida);

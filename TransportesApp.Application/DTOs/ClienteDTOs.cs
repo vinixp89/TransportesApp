@@ -15,11 +15,12 @@
     );
 
     public record ClienteResponse(
-        Guid Id,
-        string Nome,
-        string Telefone,
-        string Email,
-        double? AvaliacaoMedia,
-        DateTime DataCadastro
-    );
+      Guid Id,
+      Guid UsuarioId,
+      string Nome,
+      string Telefone,
+      string Email,
+      double? AvaliacaoMedia,
+      DateTime DataCadastro
+  );
 }
