@@ -14,7 +14,7 @@ namespace TransportesApp.Application.Services
             _clienteRepository = clienteRepository;
         }
 
-        public async Task<ClienteResponse> CriarAsync(CriarClienteRequest request, Guid usuarioId)
+        public async Task<ClienteResponse> CriarAsync(CriarClienteRequest request, Guid usuarioId, string email)
         {
             var endereco = new Endereco(
                 logradouro: request.Logradouro,
@@ -30,8 +30,9 @@ namespace TransportesApp.Application.Services
             var cliente = new Cliente(
                 usuarioId: usuarioId,
                 nome: request.Nome,
+                cpf: request.Cpf,
                 telefone: request.Telefone,
-                email: request.Email,
+                email: email,
                 endereco: endereco
             );
 
@@ -67,6 +68,7 @@ namespace TransportesApp.Application.Services
                 cliente.Id,
                 cliente.UsuarioId,
                 cliente.Nome,
+                cliente.Cpf,
                 cliente.Telefone,
                 cliente.Email,
                 cliente.AvaliacaoMedia,

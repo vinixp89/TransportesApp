@@ -25,7 +25,10 @@ namespace TransportesApp.Api.Controllers
             var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? User.FindFirstValue("sub")!);
 
-            var cliente = await _clienteService.CriarAsync(request, usuarioId);
+            var email = User.FindFirstValue(ClaimTypes.Email)
+                ?? User.FindFirstValue("email")!;
+
+            var cliente = await _clienteService.CriarAsync(request, usuarioId, email);
             return Ok(cliente);
         }
 

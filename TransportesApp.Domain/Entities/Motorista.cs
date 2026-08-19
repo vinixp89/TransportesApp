@@ -1,4 +1,5 @@
-﻿using TransportesApp.Domain.Enums;
+﻿using TransportesApp.Domain.Common;
+using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.ValueObjects;
 
 namespace TransportesApp.Domain.Entities
@@ -8,6 +9,7 @@ namespace TransportesApp.Domain.Entities
         public Guid Id { get; private set; }
         public Guid UsuarioId { get; private set; }
         public string CNH { get; private set; }
+        public string Cpf { get; private set; } = default!;
         public string PlacaVeiculo { get; private set; }
         public string ModeloVeiculo { get; private set; }
         public Endereco Endereco { get; private set; } = default!;
@@ -22,11 +24,14 @@ namespace TransportesApp.Domain.Entities
 
 
 
-        public Motorista(Guid usuarioId, string cnh, string placaVeiculo, string modeloVeiculo, Endereco endereco)
+        public Motorista(Guid usuarioId, string cnh, string cpf, string placaVeiculo, string modeloVeiculo, Endereco endereco)
         {
 
             if (string.IsNullOrWhiteSpace(cnh))
                 throw new ArgumentException("CNH é Obrigatória. ");
+
+            if (!CpfValidator.EhValido(cpf))
+                throw new ArgumentException("CPF inválido.");
 
             if (endereco is null)
                 throw new ArgumentException("Endereço é obrigatório.");
@@ -34,6 +39,7 @@ namespace TransportesApp.Domain.Entities
             Id = Guid.NewGuid();
             UsuarioId = usuarioId;
             CNH = cnh;
+            Cpf = CpfValidator.Normalizar(cpf);
             PlacaVeiculo = placaVeiculo;
             ModeloVeiculo = modeloVeiculo;
             Endereco = endereco;

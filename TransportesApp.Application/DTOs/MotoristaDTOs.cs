@@ -2,6 +2,7 @@ namespace TransportesApp.Application.DTOs
 {
     public record CriarMotoristaRequest(
         string Cnh,
+        string Cpf,
         string PlacaVeiculo,
         string ModeloVeiculo,
         string Logradouro,
@@ -18,6 +19,7 @@ namespace TransportesApp.Application.DTOs
         Guid Id,
         Guid UsuarioId,
         string Cnh,
+        string Cpf,
         string PlacaVeiculo,
         string ModeloVeiculo,
         double AvaliacaoMeida,

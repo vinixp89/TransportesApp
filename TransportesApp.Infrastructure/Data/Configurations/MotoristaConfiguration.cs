@@ -16,6 +16,13 @@ namespace TransportesApp.Infrastructure.Data.Configurations
                 .IsRequired()
                 .HasMaxLength(20);
 
+            builder.Property(m => m.Cpf)
+                .IsRequired()
+                .HasMaxLength(11);
+
+            builder.HasIndex(m => m.Cpf)
+                .IsUnique();
+
             builder.Property(m => m.PlacaVeiculo)
                 .IsRequired()
                 .HasMaxLength(10);

@@ -30,6 +30,7 @@ namespace TransportesApp.Application.Services
             var motorista = new Motorista(
                 usuarioId: usuarioId,
                 cnh: request.Cnh,
+                cpf: request.Cpf,
                 placaVeiculo: request.PlacaVeiculo,
                 modeloVeiculo: request.ModeloVeiculo,
                 endereco: endereco
@@ -74,6 +75,7 @@ namespace TransportesApp.Application.Services
                 motorista.Id,
                 motorista.UsuarioId,
                 motorista.CNH,
+                motorista.Cpf,
                 motorista.PlacaVeiculo,
                 motorista.ModeloVeiculo,
                 motorista.AvaliacaoMedia,

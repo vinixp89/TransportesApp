@@ -2,8 +2,8 @@
 {
     public record CriarClienteRequest(
         string Nome,
+        string Cpf,
         string Telefone,
-        string Email,
         string Logradouro,
         string Numero,
         string Bairro,
@@ -18,6 +18,7 @@
       Guid Id,
       Guid UsuarioId,
       string Nome,
+      string Cpf,
       string Telefone,
       string Email,
       double? AvaliacaoMedia,

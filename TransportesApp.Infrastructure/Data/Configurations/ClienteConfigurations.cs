@@ -18,7 +18,14 @@ namespace TransportesApp.Infrastructure.Data.Configurations
 
             builder.Property(c => c.Nome)
                 .IsRequired()
-                .HasMaxLength(20);
+                .HasMaxLength(150);
+
+            builder.Property(c => c.Cpf)
+                .IsRequired()
+                .HasMaxLength(11);
+
+            builder.HasIndex(c => c.Cpf)
+                .IsUnique();
 
             builder.Property(c => c.Telefone)
                 .IsRequired()

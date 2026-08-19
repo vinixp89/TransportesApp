@@ -8,6 +8,7 @@ using TransportesApp.Application.Services;
 using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
+using TransportesApp.Infrastructure.Email;
 using TransportesApp.Infrastructure.Repositories;
 using Microsoft.OpenApi;
 
@@ -33,6 +34,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ClienteService>();
             builder.Services.AddScoped<MotoristaService>();
             builder.Services.AddScoped<CorridaService>();
+            builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
