@@ -5,7 +5,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using TransportesApp.Application.DTOs;
+using TransportesApp.Application.Services;
 using TransportesApp.Domain.Entities;
+using TransportesApp.Domain.Enums;
 
 namespace TransportesApp.Api.Controllers
 {
@@ -15,28 +17,57 @@ namespace TransportesApp.Api.Controllers
     {
         private readonly UserManager<Usuario> _userManager;
         private readonly IConfiguration _configuration;
+        private readonly ClienteService _clienteService;
+        private readonly MotoristaService _motoristaService;
 
-        public AuthController(UserManager<Usuario> userManager, IConfiguration configuration)
+        public AuthController(UserManager<Usuario> userManager, IConfiguration configuration, ClienteService clienteService, MotoristaService motoristaService)
         {
             _userManager = userManager;
             _configuration = configuration;
+            _clienteService = clienteService;
+            _motoristaService = motoristaService;
         }
 
-        [HttpPost("registrar")]
-        public async Task<IActionResult> Registrar([FromBody] RegistrarRequest request)
+        [HttpPost("registrar-cliente")]
+        public Task<IActionResult> RegistrarCliente([FromBody] RegistrarClienteRequest request)
+            => RegistrarAsync(request.Email, request.Senha, TipoUsuario.Cliente, request.Cliente, _clienteService.CriarAsync);
+
+        [HttpPost("registrar-motorista")]
+        public Task<IActionResult> RegistrarMotorista([FromBody] RegistrarMotoristaRequest request)
+            => RegistrarAsync(request.Email, request.Senha, TipoUsuario.Motorista, request.Motorista, _motoristaService.CriarAsync);
+
+        private async Task<IActionResult> RegistrarAsync<TDadosPerfil>(
+            string email,
+            string senha,
+            TipoUsuario tipo,
+            TDadosPerfil dadosPerfil,
+            Func<TDadosPerfil, Guid, Task> criarPerfilAsync)
         {
             var usuario = new Usuario
             {
-                UserName = request.Email,
-                Email = request.Email
+                UserName = email,
+                Email = email
             };
 
-            var resultado = await _userManager.CreateAsync(usuario, request.Senha);
+            var resultado = await _userManager.CreateAsync(usuario, senha);
 
             if (!resultado.Succeeded)
                 return BadRequest(resultado.Errors.Select(e => e.Description));
 
-            var token = GerarToken(usuario);
+            await _userManager.AddToRoleAsync(usuario, tipo.ToString());
+
+            try
+            {
+                await criarPerfilAsync(dadosPerfil, usuario.Id);
+            }
+            catch (ArgumentException ex)
+            {
+                // Perfil inválido: desfaz o usuário criado pra não deixar um cadastro pela metade.
+                await _userManager.DeleteAsync(usuario);
+                return BadRequest(new { mensagem = ex.Message });
+            }
+
+            var token = await GerarTokenAsync(usuario);
 
             return Ok(token);
         }
@@ -54,12 +85,12 @@ namespace TransportesApp.Api.Controllers
             if (!senhaValida)
                 return Unauthorized(new { mensagem = "Email ou senha inválidos" });
 
-            var token = GerarToken(usuario);
+            var token = await GerarTokenAsync(usuario);
 
             return Ok(token);
         }
 
-        private AuthResponse GerarToken(Usuario usuario)
+        private async Task<AuthResponse> GerarTokenAsync(Usuario usuario)
         {
             var jwtKey = _configuration["Jwt:Key"];
             var jwtIssuer = _configuration["Jwt:Issuer"];
@@ -71,6 +102,9 @@ namespace TransportesApp.Api.Controllers
                 new Claim(JwtRegisteredClaimNames.Email, usuario.Email!),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
+
+            var roles = await _userManager.GetRolesAsync(usuario);
+            claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

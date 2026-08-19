@@ -9,9 +9,9 @@
         string Bairro,
         string Cidade,
         string Estado,
-        double Latitude,
-        double Longitude,
-        string? Complemento
+        string? Complemento = null,
+        double? Latitude = null,
+        double? Longitude = null
     );
 
     public record ClienteResponse(

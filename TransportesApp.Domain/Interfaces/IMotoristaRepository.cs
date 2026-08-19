@@ -6,6 +6,7 @@ namespace TransportesApp.Domain.Interfaces
     public interface IMotoristaRepository
     {
         Task<Motorista?> ObterPorIdAsync(Guid id);
+        Task<Motorista?> ObterPorUsuarioIdAsync(Guid usuarioId);
         Task<IEnumerable<Motorista>> ListarAsync();
         Task<IEnumerable<Motorista>> ListarDisponiveisAsync();
         Task AdicionarAsync(Motorista motorista);

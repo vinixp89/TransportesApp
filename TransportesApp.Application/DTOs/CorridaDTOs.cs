@@ -16,7 +16,6 @@ namespace TransportesApp.Application.DTOs
 
     public record CriarCorridasRequest
         (
-            Guid ClienteId,
             EnderecoRequest Origem,
             EnderecoRequest Destino,
             double DistanciaEstimadaKm,
@@ -50,8 +49,6 @@ namespace TransportesApp.Application.DTOs
             StatusCorrida Status,
             DateTime DataSolicitacao
         );
-
-    public record AtribuirMotoristaRequest(Guid MotoristaId);
 
     public record FinalizarCorridaRequest(double DistanciaReal);
 

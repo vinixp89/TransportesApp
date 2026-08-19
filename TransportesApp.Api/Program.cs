@@ -15,7 +15,7 @@ namespace TransportesApp.Api
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -87,6 +87,18 @@ namespace TransportesApp.Api
 
             var app = builder.Build();
 
+            using (var scope = app.Services.CreateScope())
+            {
+                var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+                string[] roles = { "Cliente", "Motorista" };
+
+                foreach (var role in roles)
+                {
+                    if (!await roleManager.RoleExistsAsync(role))
+                        await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+                }
+            }
+
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
@@ -104,7 +116,7 @@ namespace TransportesApp.Api
 
             app.MapControllers();
 
-            app.Run();
+            await app.RunAsync();
         }
     }
 }

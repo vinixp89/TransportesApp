@@ -1,4 +1,5 @@
 ﻿using TransportesApp.Domain.Enums;
+using TransportesApp.Domain.ValueObjects;
 
 namespace TransportesApp.Domain.Entities
 {
@@ -9,6 +10,7 @@ namespace TransportesApp.Domain.Entities
         public string CNH { get; private set; }
         public string PlacaVeiculo { get; private set; }
         public string ModeloVeiculo { get; private set; }
+        public Endereco Endereco { get; private set; } = default!;
         public StatusMotorista Status { get; private set; }
         public double? LatitudeAtual { get; private set; }
         public double? LongitudeAtual { get; private set; }
@@ -20,23 +22,28 @@ namespace TransportesApp.Domain.Entities
 
 
 
-        public Motorista(Guid usuarioId,string cnh , string placaVeiculo,string  modeloVeiculo) 
+        public Motorista(Guid usuarioId, string cnh, string placaVeiculo, string modeloVeiculo, Endereco endereco)
         {
 
             if (string.IsNullOrWhiteSpace(cnh))
                 throw new ArgumentException("CNH é Obrigatória. ");
+
+            if (endereco is null)
+                throw new ArgumentException("Endereço é obrigatório.");
+
             Id = Guid.NewGuid();
             UsuarioId = usuarioId;
             CNH = cnh;
             PlacaVeiculo = placaVeiculo;
             ModeloVeiculo = modeloVeiculo;
+            Endereco = endereco;
             Status = StatusMotorista.Offline;
             AvaliacaoMedia = 5.0;
             DataCadastro = DateTime.UtcNow;
-        
-        
-        
-        
+
+
+
+
         }
 
         public void AtualizarLocalizacao(double latitude , double longitude)

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TransportesApp.Application.DTOs;
 using TransportesApp.Application.Services;
@@ -11,16 +12,29 @@ namespace TransportesApp.Api.Controllers
     public class CorridasController : ControllerBase
     {
         private readonly CorridaService _corridaService;
+        private readonly ClienteService _clienteService;
+        private readonly MotoristaService _motoristaService;
 
-        public CorridasController(CorridaService corridaService)
+        public CorridasController(CorridaService corridaService, ClienteService clienteService, MotoristaService motoristaService)
         {
             _corridaService = corridaService;
+            _clienteService = clienteService;
+            _motoristaService = motoristaService;
         }
 
+        [Authorize(Roles = "Cliente")]
         [HttpPost]
         public async Task<IActionResult> Criar([FromBody] CriarCorridasRequest request)
         {
-            var corrida = await _corridaService.CriarAsync(request);
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de solicitar corridas." });
+
+            var corrida = await _corridaService.CriarAsync(request, cliente.Id);
             return Ok(corrida);
         }
 
@@ -45,12 +59,21 @@ namespace TransportesApp.Api.Controllers
 
     
 
+    [Authorize(Roles = "Motorista")]
     [HttpPatch("{id}/atribuir-motorista")]
-        public async Task<IActionResult> AtribuirMotorista(Guid id, [FromBody] AtribuirMotoristaRequest request)
+        public async Task<IActionResult> AtribuirMotorista(Guid id)
         {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de aceitar corridas." });
+
             try
             {
-                var corrida = await _corridaService.AtribuirMotoristaAsync(id, request);
+                var corrida = await _corridaService.AtribuirMotoristaAsync(id, motorista.Id);
 
                 if (corrida is null)
                     return NotFound();
@@ -63,6 +86,7 @@ namespace TransportesApp.Api.Controllers
             }
         }
 
+        [Authorize(Roles = "Motorista")]
         [HttpPatch("{id}/iniciar")]
         public async Task<IActionResult> IniciarViagem(Guid id)
         {
@@ -81,6 +105,7 @@ namespace TransportesApp.Api.Controllers
             }
         }
 
+        [Authorize(Roles = "Motorista")]
         [HttpPatch("{id}/finalizar")]
         public async Task<IActionResult> Finalizar(Guid id, [FromBody] FinalizarCorridaRequest request)
         {

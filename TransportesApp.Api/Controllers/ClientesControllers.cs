@@ -18,6 +18,7 @@ namespace TransportesApp.Api.Controllers
             _clienteService = clienteService;
         }
 
+        [Authorize(Roles = "Cliente")]
         [HttpPost]
         public async Task<IActionResult> Criar([FromBody] CriarClienteRequest request)
         {
@@ -42,6 +43,12 @@ namespace TransportesApp.Api.Controllers
 
             if (cliente is null)
                 return NotFound();
+
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            if (cliente.UsuarioId != usuarioId)
+                return Forbid();
 
             return Ok(cliente);
         }

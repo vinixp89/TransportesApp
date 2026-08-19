@@ -14,7 +14,7 @@ namespace TransportesApp.Application.Services
             _corridaRepository = corridaRepository;
         }
 
-        public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request)
+        public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
         {
             var origem = MapearEndereco(request.Origem);
             var destino = MapearEndereco(request.Destino);
@@ -22,7 +22,7 @@ namespace TransportesApp.Application.Services
             var faixa = FaixaDistancia.ClassificarPorDistancia(request.DistanciaEstimadaKm);
 
             var corrida = new Corrida(
-                clienteId: request.ClienteId,
+                clienteId: clienteId,
                 origem: origem,
                 destino: destino,
                 distanciaEstimadaKm: request.DistanciaEstimadaKm,
@@ -50,14 +50,14 @@ namespace TransportesApp.Application.Services
             return corridas.Select(MapearParaResponse);
         }
 
-        public async Task<CorridaResponse?> AtribuirMotoristaAsync(Guid corridaId, AtribuirMotoristaRequest request)
+        public async Task<CorridaResponse?> AtribuirMotoristaAsync(Guid corridaId, Guid motoristaId)
         {
             var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
 
             if (corrida is null)
                 return null;
 
-            corrida.AtribuirMotorista(request.MotoristaId);
+            corrida.AtribuirMotorista(motoristaId);
 
             await _corridaRepository.AtualizarAsync(corrida);
 

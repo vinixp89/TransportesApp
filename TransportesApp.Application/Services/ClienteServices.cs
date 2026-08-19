@@ -22,8 +22,8 @@ namespace TransportesApp.Application.Services
                 bairro: request.Bairro,
                 cidade: request.Cidade,
                 estado: request.Estado,
-                latitude: request.Latitude,
-                longitude: request.Longitude,
+                latitude: request.Latitude ?? 0,
+                longitude: request.Longitude ?? 0,
                 complemento: request.Complemento
             );
 
@@ -43,6 +43,13 @@ namespace TransportesApp.Application.Services
         public async Task<ClienteResponse?> ObterPorIdAsync(Guid id)
         {
             var cliente = await _clienteRepository.ObterPorIdAsync(id);
+
+            return cliente is null ? null : MapearParaResponse(cliente);
+        }
+
+        public async Task<ClienteResponse?> ObterPorUsuarioIdAsync(Guid usuarioId)
+        {
+            var cliente = await _clienteRepository.ObterPorUsuarioIdAsync(usuarioId);
 
             return cliente is null ? null : MapearParaResponse(cliente);
         }

@@ -1,6 +1,7 @@
 ﻿using TransportesApp.Application.DTOs;
 using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Interfaces;
+using TransportesApp.Domain.ValueObjects;
 
 namespace TransportesApp.Application.Services
 {
@@ -15,11 +16,23 @@ namespace TransportesApp.Application.Services
 
         public async Task<MotoristaResponse> CriarAsync(CriarMotoristaRequest request, Guid usuarioId)
         {
+            var endereco = new Endereco(
+                logradouro: request.Logradouro,
+                numero: request.Numero,
+                bairro: request.Bairro,
+                cidade: request.Cidade,
+                estado: request.Estado,
+                latitude: request.Latitude ?? 0,
+                longitude: request.Longitude ?? 0,
+                complemento: request.Complemento
+            );
+
             var motorista = new Motorista(
                 usuarioId: usuarioId,
                 cnh: request.Cnh,
                 placaVeiculo: request.PlacaVeiculo,
-                modeloVeiculo: request.ModeloVeiculo
+                modeloVeiculo: request.ModeloVeiculo,
+                endereco: endereco
             );
 
             await _motoristaRepository.AdicionarAsync(motorista);
@@ -30,6 +43,13 @@ namespace TransportesApp.Application.Services
         public async Task<MotoristaResponse?> ObterPorIdAsync(Guid id)
         {
             var motorista = await _motoristaRepository.ObterPorIdAsync(id);
+
+            return motorista is null ? null : MapearParaResponse(motorista);
+        }
+
+        public async Task<MotoristaResponse?> ObterPorUsuarioIdAsync(Guid usuarioId)
+        {
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
 
             return motorista is null ? null : MapearParaResponse(motorista);
         }
@@ -57,7 +77,17 @@ namespace TransportesApp.Application.Services
                 motorista.PlacaVeiculo,
                 motorista.ModeloVeiculo,
                 motorista.AvaliacaoMedia,
-                motorista.DataCadastro
+                motorista.DataCadastro,
+                new EnderecoResponse(
+                    motorista.Endereco.Logradouro,
+                    motorista.Endereco.Numero,
+                    motorista.Endereco.Bairro,
+                    motorista.Endereco.Cidade,
+                    motorista.Endereco.Estado,
+                    motorista.Endereco.Latitude,
+                    motorista.Endereco.Longitude,
+                    motorista.Endereco.Complemento
+                )
             );
         }
     }

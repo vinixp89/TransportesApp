@@ -18,6 +18,7 @@ namespace TransportesApp.Api.Controllers
             _motoristaService = motoristaService;
         }
 
+        [Authorize(Roles = "Motorista")]
         [HttpPost]
         public async Task<IActionResult> Criar([FromBody] CriarMotoristaRequest request)
         {
