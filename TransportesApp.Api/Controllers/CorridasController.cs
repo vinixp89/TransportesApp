@@ -38,6 +38,7 @@ namespace TransportesApp.Api.Controllers
             return Ok(corrida);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Listar()
         {
@@ -53,14 +54,14 @@ namespace TransportesApp.Api.Controllers
             if (corrida is null)
                 return NotFound();
 
+            if (!await UsuarioParticipaDaCorridaAsync(corrida))
+                return Forbid();
+
             return Ok(corrida);
         }
 
-
-    
-
-    [Authorize(Roles = "Motorista")]
-    [HttpPatch("{id}/atribuir-motorista")]
+        [Authorize(Roles = "Motorista")]
+        [HttpPatch("{id}/atribuir-motorista")]
         public async Task<IActionResult> AtribuirMotorista(Guid id)
         {
             var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -90,6 +91,14 @@ namespace TransportesApp.Api.Controllers
         [HttpPatch("{id}/iniciar")]
         public async Task<IActionResult> IniciarViagem(Guid id)
         {
+            var corridaAtual = await _corridaService.ObterPorIdAsync(id);
+
+            if (corridaAtual is null)
+                return NotFound();
+
+            if (!await MotoristaAtribuidoNaCorridaAsync(corridaAtual))
+                return Forbid();
+
             try
             {
                 var corrida = await _corridaService.IniciarViagemAsync(id);
@@ -109,6 +118,14 @@ namespace TransportesApp.Api.Controllers
         [HttpPatch("{id}/finalizar")]
         public async Task<IActionResult> Finalizar(Guid id, [FromBody] FinalizarCorridaRequest request)
         {
+            var corridaAtual = await _corridaService.ObterPorIdAsync(id);
+
+            if (corridaAtual is null)
+                return NotFound();
+
+            if (!await MotoristaAtribuidoNaCorridaAsync(corridaAtual))
+                return Forbid();
+
             try
             {
                 var resultado = await _corridaService.FinalizarAsync(id, request);
@@ -127,6 +144,14 @@ namespace TransportesApp.Api.Controllers
         [HttpPatch("{id}/cancelar")]
         public async Task<IActionResult> Cancelar(Guid id)
         {
+            var corridaAtual = await _corridaService.ObterPorIdAsync(id);
+
+            if (corridaAtual is null)
+                return NotFound();
+
+            if (!await UsuarioParticipaDaCorridaAsync(corridaAtual))
+                return Forbid();
+
             try
             {
                 var corrida = await _corridaService.CancelarAsync(id);
@@ -141,4 +166,38 @@ namespace TransportesApp.Api.Controllers
                 return BadRequest(new { mensagem = ex.Message });
             }
         }
-    } }
+
+        // Admin sempre pode; caso contrário, só o cliente dono da corrida ou o motorista atribuído a ela.
+        private async Task<bool> UsuarioParticipaDaCorridaAsync(CorridaResponse corrida)
+        {
+            if (User.IsInRole("Admin"))
+                return true;
+
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is not null && cliente.Id == corrida.ClienteId)
+                return true;
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is not null && corrida.MotoristaId is not null && motorista.Id == corrida.MotoristaId)
+                return true;
+
+            return false;
+        }
+
+        // Só o motorista atribuído àquela corrida especificamente (não qualquer motorista).
+        private async Task<bool> MotoristaAtribuidoNaCorridaAsync(CorridaResponse corrida)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            return motorista is not null && corrida.MotoristaId is not null && motorista.Id == corrida.MotoristaId;
+        }
+    }
+}

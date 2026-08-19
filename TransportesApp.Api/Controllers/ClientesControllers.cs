@@ -32,6 +32,7 @@ namespace TransportesApp.Api.Controllers
             return Ok(cliente);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Listar()
         {
@@ -47,11 +48,14 @@ namespace TransportesApp.Api.Controllers
             if (cliente is null)
                 return NotFound();
 
-            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
-                ?? User.FindFirstValue("sub")!);
+            if (!User.IsInRole("Admin"))
+            {
+                var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? User.FindFirstValue("sub")!);
 
-            if (cliente.UsuarioId != usuarioId)
-                return Forbid();
+                if (cliente.UsuarioId != usuarioId)
+                    return Forbid();
+            }
 
             return Ok(cliente);
         }

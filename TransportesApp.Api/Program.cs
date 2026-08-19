@@ -92,12 +92,34 @@ namespace TransportesApp.Api
             using (var scope = app.Services.CreateScope())
             {
                 var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
-                string[] roles = { "Cliente", "Motorista" };
+                string[] roles = { "Cliente", "Motorista", "Admin" };
 
                 foreach (var role in roles)
                 {
                     if (!await roleManager.RoleExistsAsync(role))
                         await roleManager.CreateAsync(new IdentityRole<Guid>(role));
+                }
+
+                // Cria a conta de Admin automaticamente no start, se as credenciais estiverem configuradas
+                // (via User Secrets: "Admin:Email" e "Admin:Password") e a conta ainda não existir.
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<Usuario>>();
+                var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+
+                var adminEmail = configuration["Admin:Email"];
+                var adminSenha = configuration["Admin:Password"];
+
+                if (!string.IsNullOrWhiteSpace(adminEmail) && !string.IsNullOrWhiteSpace(adminSenha))
+                {
+                    var adminExistente = await userManager.FindByEmailAsync(adminEmail);
+
+                    if (adminExistente is null)
+                    {
+                        var admin = new Usuario { UserName = adminEmail, Email = adminEmail };
+                        var resultadoAdmin = await userManager.CreateAsync(admin, adminSenha);
+
+                        if (resultadoAdmin.Succeeded)
+                            await userManager.AddToRoleAsync(admin, "Admin");
+                    }
                 }
             }
 

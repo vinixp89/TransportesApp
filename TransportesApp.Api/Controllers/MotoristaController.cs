@@ -29,6 +29,7 @@ namespace TransportesApp.Api.Controllers
             return Ok(motorista);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Listar()
         {
@@ -36,6 +37,7 @@ namespace TransportesApp.Api.Controllers
             return Ok(motoristas);
         }
 
+        [Authorize(Roles = "Admin")]
         [HttpGet("disponiveis")]
         public async Task<IActionResult> ListarDisponiveis()
         {
@@ -50,6 +52,15 @@ namespace TransportesApp.Api.Controllers
 
             if (motorista is null)
                 return NotFound();
+
+            if (!User.IsInRole("Admin"))
+            {
+                var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? User.FindFirstValue("sub")!);
+
+                if (motorista.UsuarioId != usuarioId)
+                    return Forbid();
+            }
 
             return Ok(motorista);
         }
