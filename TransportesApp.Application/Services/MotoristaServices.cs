@@ -69,6 +69,34 @@ namespace TransportesApp.Application.Services
             return motoristas.Select(MapearParaResponse);
         }
 
+        public async Task<MotoristaResponse?> FicarDisponivelAsync(Guid usuarioId)
+        {
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return null;
+
+            motorista.FicarDisponivel();
+
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
+        public async Task<MotoristaResponse?> FicarOfflineAsync(Guid usuarioId)
+        {
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return null;
+
+            motorista.FicarOffline();
+
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
         private static MotoristaResponse MapearParaResponse(Motorista motorista)
         {
             return new MotoristaResponse(

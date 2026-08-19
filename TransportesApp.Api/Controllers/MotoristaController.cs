@@ -53,5 +53,35 @@ namespace TransportesApp.Api.Controllers
 
             return Ok(motorista);
         }
+
+        [Authorize(Roles = "Motorista")]
+        [HttpPatch("ficar-disponivel")]
+        public async Task<IActionResult> FicarDisponivel()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.FicarDisponivelAsync(usuarioId);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ficar disponível." });
+
+            return Ok(motorista);
+        }
+
+        [Authorize(Roles = "Motorista")]
+        [HttpPatch("ficar-offline")]
+        public async Task<IActionResult> FicarOffline()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.FicarOfflineAsync(usuarioId);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de alterar o status." });
+
+            return Ok(motorista);
+        }
     }
 }
