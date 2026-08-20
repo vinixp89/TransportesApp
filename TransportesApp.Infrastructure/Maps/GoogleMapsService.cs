@@ -66,7 +66,7 @@ namespace TransportesApp.Infrastructure.Maps
             return distanciaMetros.Value / 1000.0;
         }
 
-        public async Task<(double Latitude, double Longitude)> GeocodificarAsync(string endereco)
+        public async Task<(double Latitude, double Longitude, bool CorrespondenciaParcial)> GeocodificarAsync(string endereco)
         {
             var apiKey = _configuration["GoogleMaps:ApiKey"];
 
@@ -88,7 +88,8 @@ namespace TransportesApp.Infrastructure.Maps
                 throw new InvalidOperationException("Não foi possível contatar o serviço de mapas no momento.", ex);
             }
 
-            var localizacao = resposta?.Results?.FirstOrDefault()?.Geometry?.Location;
+            var resultado = resposta?.Results?.FirstOrDefault();
+            var localizacao = resultado?.Geometry?.Location;
             var latitude = localizacao?.Lat;
             var longitude = localizacao?.Lng;
 
@@ -98,7 +99,11 @@ namespace TransportesApp.Infrastructure.Maps
                     $"{(string.IsNullOrWhiteSpace(resposta?.ErrorMessage) ? "" : $" — {resposta!.ErrorMessage}")}). " +
                     "Confira se o endereço está completo e correto, ou informe latitude/longitude manualmente.");
 
-            return (latitude.Value, longitude.Value);
+            // partial_match = true quando o Google não teve certeza total do endereço digitado
+            // (ex: rua/bairro com erro de digitação, mas achou algo parecido).
+            var correspondenciaParcial = resultado!.PartialMatch ?? false;
+
+            return (latitude.Value, longitude.Value, correspondenciaParcial);
         }
 
         private static string FormatarCoordenada(double latitude, double longitude)
@@ -152,6 +157,9 @@ namespace TransportesApp.Infrastructure.Maps
     internal class GoogleGeocodeResult
     {
         public GoogleGeocodeGeometry? Geometry { get; set; }
+
+        [JsonPropertyName("partial_match")]
+        public bool? PartialMatch { get; set; }
     }
 
     internal class GoogleGeocodeGeometry

@@ -1,4 +1,4 @@
-﻿using TransportesApp.Domain.Enums;
+using TransportesApp.Domain.Enums;
 
 namespace TransportesApp.Domain.ValueObjects
 {
@@ -12,35 +12,47 @@ namespace TransportesApp.Domain.ValueObjects
 
         public decimal PrecoAvulso { get; }
 
-        public decimal PrecoPacote10 { get; }
+        // Tamanhos de pacote de corridas disponíveis pra compra.
+        public static readonly int[] TamanhosPacoteDisponiveis = { 3, 5, 10 };
 
-        public FaixaDistancia(CorFaixa cor, double kmMinimo, double? kmMaximo, decimal precoAvulso, decimal precoPacote)
+        public FaixaDistancia(CorFaixa cor, double kmMinimo, double? kmMaximo, decimal precoAvulso)
         {
             Cor = cor;
             KmMinimo = kmMinimo;
             KmMaximo = kmMaximo;
             PrecoAvulso = precoAvulso;
-            PrecoPacote10 = precoPacote;
         }
 
         public bool Contem(double km) => km >= KmMinimo && (KmMaximo is null || km <= KmMaximo);
 
+        // Preço do pacote é proporcional ao avulso (sem desconto) — a margem por corrida já é enxuta (15%),
+        // então dar desconto em pacote cortaria direto na margem.
+        public decimal ObterPrecoPacote(int quantidade)
+        {
+            if (!TamanhosPacoteDisponiveis.Contains(quantidade))
+                throw new ArgumentException(
+                    $"Pacote de {quantidade} corridas não é um tamanho disponível. Tamanhos válidos: {string.Join(", ", TamanhosPacoteDisponiveis)}.");
+
+            return PrecoAvulso * quantidade;
+        }
+
         private static readonly List<FaixaDistancia> Faixas = new()
         {
-            new FaixaDistancia(CorFaixa.Azul,0,5,8m,50m),
-            new FaixaDistancia(CorFaixa.Amarela, 5,10,20m,80m),
-            new FaixaDistancia(CorFaixa.Vermelha, 10,30,50m,160m),
-            new FaixaDistancia(CorFaixa.Rosa, 30 ,60,70m,280m),
-            new FaixaDistancia(CorFaixa.Verde,60 ,120, 120m,480m),
-            new FaixaDistancia(CorFaixa.Roxa, 120,220,200m, 800m)
-
-
+            // KmMinimo do Azul é 0 (não 1) de propósito: cobre corridas bem curtas (< 1km) que a
+            // tabela não previa explicitamente, evitando um buraco sem faixa nenhuma.
+            new FaixaDistancia(CorFaixa.Azul,     0,    5,   8.90m),
+            new FaixaDistancia(CorFaixa.Amarela,  5.1, 10,  14.90m),
+            new FaixaDistancia(CorFaixa.Laranja, 10.1, 15,  22.90m),
+            new FaixaDistancia(CorFaixa.Vermelha,15.1, 20,  29.90m),
+            new FaixaDistancia(CorFaixa.Rosa,    20.1, 30,  49.90m),
+            new FaixaDistancia(CorFaixa.Verde,   30.1, 40,  64.90m),
+            new FaixaDistancia(CorFaixa.Roxa,    40.1, 50,  79.90m)
         };
-        public static FaixaDistancia ClassificarPorDistancia( double km) 
+        public static FaixaDistancia ClassificarPorDistancia( double km)
         {
 
             var faixa = Faixas.FirstOrDefault(f => f.Contem(km));
-            return faixa ?? throw new InvalidOperationException($"Corridas acima de 150km não são permitidas nesta plataforma(distancia informada {km}km) .");
+            return faixa ?? throw new InvalidOperationException($"Corridas acima de 50km não são permitidas nesta plataforma (distância informada: {km}km).");
 
         }
 

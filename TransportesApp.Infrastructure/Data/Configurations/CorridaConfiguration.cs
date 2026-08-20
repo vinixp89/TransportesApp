@@ -41,6 +41,11 @@ namespace TransportesApp.Infrastructure.Data.Configurations
                 .HasForeignKey(c=>c.MotoristaId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            builder.HasOne<PacoteCorridas>()
+                .WithMany()
+                .HasForeignKey(c => c.PacoteCorridasId)
+                .OnDelete(DeleteBehavior.Restrict);
+
 
 
 

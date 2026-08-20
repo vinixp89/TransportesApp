@@ -1,5 +1,6 @@
 ﻿using TransportesApp.Application.DTOs;
 using TransportesApp.Domain.Entities;
+using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Domain.ValueObjects;
 
@@ -9,22 +10,38 @@ namespace TransportesApp.Application.Services
     {
         private readonly ICorridaRepository _corridaRepository;
         private readonly IMapsService _mapsService;
+        private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
 
-        public CorridaService(ICorridaRepository corridaRepository, IMapsService mapsService)
+        public CorridaService(
+            ICorridaRepository corridaRepository,
+            IMapsService mapsService,
+            IPacoteCorridasRepository pacoteCorridasRepository)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
+            _pacoteCorridasRepository = pacoteCorridasRepository;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
         {
-            var origem = await ResolverEnderecoAsync(request.Origem);
-            var destino = await ResolverEnderecoAsync(request.Destino);
+            var avisos = new List<string>();
+
+            var (origem, origemParcial) = await ResolverEnderecoAsync(request.Origem);
+            if (origemParcial)
+                avisos.Add("O endereço de origem foi localizado com correspondência parcial pelo Google Maps — confira se está correto.");
+
+            var (destino, destinoParcial) = await ResolverEnderecoAsync(request.Destino);
+            if (destinoParcial)
+                avisos.Add("O endereço de destino foi localizado com correspondência parcial pelo Google Maps — confira se está correto.");
 
             var distanciaEstimadaKm = await _mapsService.CalcularDistanciaKmAsync(
                 origem.Latitude, origem.Longitude, destino.Latitude, destino.Longitude);
 
             var faixa = FaixaDistancia.ClassificarPorDistancia(distanciaEstimadaKm);
+
+            // Se a corrida é por pacote, valida que o pacote existe, é do cliente, é da faixa certa
+            // e ainda tem corridas disponíveis — só depois disso ele é efetivamente consumido.
+            var pacote = await ValidarPacoteAsync(request, clienteId, faixa);
 
             var corrida = new Corrida(
                 clienteId: clienteId,
@@ -38,7 +55,42 @@ namespace TransportesApp.Application.Services
 
             await _corridaRepository.AdicionarAsync(corrida);
 
-            return MapearParaResponse(corrida);
+            if (pacote is not null)
+            {
+                pacote.UsarCorrida();
+                await _pacoteCorridasRepository.AtualizarAsync(pacote);
+            }
+
+            return MapearParaResponse(corrida, avisos.Count > 0 ? avisos : null);
+        }
+
+        // Não consome o pacote aqui — só valida e devolve, pra só debitar depois que a corrida
+        // já tiver sido persistida com sucesso (evita descontar corrida do pacote e a criação falhar depois).
+        private async Task<PacoteCorridas?> ValidarPacoteAsync(CriarCorridasRequest request, Guid clienteId, FaixaDistancia faixa)
+        {
+            if (request.TipoConsumo != TipoConsumo.Pacote)
+                return null;
+
+            if (request.PacoteCorridasId is null)
+                throw new InvalidOperationException("Informe o pacoteCorridasId para corridas com tipoConsumo Pacote.");
+
+            var pacote = await _pacoteCorridasRepository.ObterPorIdAsync(request.PacoteCorridasId.Value);
+
+            if (pacote is null)
+                throw new InvalidOperationException("Pacote de corridas não encontrado.");
+
+            if (pacote.ClienteId != clienteId)
+                throw new InvalidOperationException("Este pacote de corridas não pertence a você.");
+
+            if (pacote.Faixa != faixa.Cor)
+                throw new InvalidOperationException(
+                    $"Este pacote é da faixa {pacote.Faixa}, mas a corrida solicitada caiu na faixa {faixa.Cor}. " +
+                    "Use um pacote da faixa correta ou solicite como corrida avulsa.");
+
+            if (!pacote.TemCorridaDisponivel)
+                throw new InvalidOperationException("Este pacote não tem corridas disponíveis. Compre um novo pacote ou solicite como corrida avulsa.");
+
+            return pacote;
         }
 
         public async Task<CorridaResponse?> ObterPorIdAsync(Guid id)
@@ -52,7 +104,7 @@ namespace TransportesApp.Application.Services
         {
             var corridas = await _corridaRepository.ListarAsync();
 
-            return corridas.Select(MapearParaResponse);
+            return corridas.Select(c => MapearParaResponse(c));
         }
 
         public async Task<CorridaResponse?> AtribuirMotoristaAsync(Guid corridaId, Guid motoristaId)
@@ -112,12 +164,13 @@ namespace TransportesApp.Application.Services
         }
 
         // Sempre geocodifica o endereço em texto via Google Maps — o cliente não informa lat/long.
-        private async Task<Endereco> ResolverEnderecoAsync(EnderecoRequest request)
+        // Devolve também se a correspondência foi parcial, pra sinalizar um possível endereço errado.
+        private async Task<(Endereco Endereco, bool CorrespondenciaParcial)> ResolverEnderecoAsync(EnderecoRequest request)
         {
             var enderecoTexto = FormatarEnderecoParaGeocodificacao(request);
-            var (latitude, longitude) = await _mapsService.GeocodificarAsync(enderecoTexto);
+            var (latitude, longitude, correspondenciaParcial) = await _mapsService.GeocodificarAsync(enderecoTexto);
 
-            return new Endereco(
+            var endereco = new Endereco(
                 logradouro: request.Logradouro,
                 numero: request.Numero,
                 bairro: request.Bairro,
@@ -127,6 +180,8 @@ namespace TransportesApp.Application.Services
                 longitude: longitude,
                 complemento: request.Complemento
             );
+
+            return (endereco, correspondenciaParcial);
         }
 
         private static string FormatarEnderecoParaGeocodificacao(EnderecoRequest request)
@@ -146,7 +201,7 @@ namespace TransportesApp.Application.Services
             );
         }
 
-        private static CorridaResponse MapearParaResponse(Corrida corrida)
+        private static CorridaResponse MapearParaResponse(Corrida corrida, IReadOnlyList<string>? avisosEndereco = null)
         {
             return new CorridaResponse(
                 corrida.Id,
@@ -159,7 +214,8 @@ namespace TransportesApp.Application.Services
                 corrida.FaixaContratada,
                 corrida.TipoConsumo,
                 corrida.Status,
-                corrida.DataSolicitacao
+                corrida.DataSolicitacao,
+                avisosEndereco
             );
         }
     }

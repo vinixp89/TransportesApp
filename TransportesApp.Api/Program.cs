@@ -32,11 +32,14 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
             builder.Services.AddScoped<ICorridaRepository, CorridaRepository>();
             builder.Services.AddScoped<IMotoristaRepository, MotoristaRepository>();
+            builder.Services.AddScoped<IPacoteCorridasRepository, PacoteCorridasRepository>();
             builder.Services.AddScoped<ClienteService>();
             builder.Services.AddScoped<MotoristaService>();
             builder.Services.AddScoped<CorridaService>();
+            builder.Services.AddScoped<PacoteCorridasService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {

@@ -61,7 +61,7 @@ namespace TransportesApp.Infrastructure.Maps
             return distanciaMetros.Value / 1000.0;
         }
 
-        public async Task<(double Latitude, double Longitude)> GeocodificarAsync(string endereco)
+        public async Task<(double Latitude, double Longitude, bool CorrespondenciaParcial)> GeocodificarAsync(string endereco)
         {
             var apiKey = ObterApiKey();
 
@@ -91,7 +91,9 @@ namespace TransportesApp.Infrastructure.Maps
                     "Confira se o endereço está completo e correto, ou informe latitude/longitude manualmente.");
             }
 
-            return (latitude, longitude);
+            // O LocationIQ/Nominatim não tem um indicador equivalente de "correspondência parcial",
+            // então sempre retorna false aqui.
+            return (latitude, longitude, false);
         }
 
         private string ObterApiKey()

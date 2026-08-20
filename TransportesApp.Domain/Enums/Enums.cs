@@ -9,16 +9,16 @@
 
     }
 
-    public enum CorFaixa 
+    public enum CorFaixa
     {
         Azul,
         Amarela,
-        Verde,
+        Laranja,
         Vermelha,
         Rosa,
-        
+        Verde,
         Roxa
-    
+
     }
 
     public enum StatusCorrida 
