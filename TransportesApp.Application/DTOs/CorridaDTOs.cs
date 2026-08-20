@@ -48,7 +48,8 @@ namespace TransportesApp.Application.DTOs
             CorFaixa FaixaContratada,
             TipoConsumo TipoConsumo,
             StatusCorrida Status,
-            DateTime DataSolicitacao
+            DateTime DataSolicitacao,
+           IReadOnlyList<string>? AvisosEndereco = null
         );
 
     public record FinalizarCorridaRequest(double DistanciaReal);
