@@ -111,22 +111,11 @@ namespace TransportesApp.Application.Services
             return MapearParaResponse(corrida);
         }
 
-        // Se a latitude/longitude não vier no request, geocodifica o endereço em texto via LocationIQ.
+        // Sempre geocodifica o endereço em texto via Google Maps — o cliente não informa lat/long.
         private async Task<Endereco> ResolverEnderecoAsync(EnderecoRequest request)
         {
-            double latitude;
-            double longitude;
-
-            if (request.Latitude is not null && request.Longitude is not null)
-            {
-                latitude = request.Latitude.Value;
-                longitude = request.Longitude.Value;
-            }
-            else
-            {
-                var enderecoTexto = FormatarEnderecoParaGeocodificacao(request);
-                (latitude, longitude) = await _mapsService.GeocodificarAsync(enderecoTexto);
-            }
+            var enderecoTexto = FormatarEnderecoParaGeocodificacao(request);
+            var (latitude, longitude) = await _mapsService.GeocodificarAsync(enderecoTexto);
 
             return new Endereco(
                 logradouro: request.Logradouro,

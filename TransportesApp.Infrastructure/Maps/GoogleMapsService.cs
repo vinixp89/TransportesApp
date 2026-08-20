@@ -7,7 +7,7 @@ using TransportesApp.Domain.Interfaces;
 
 namespace TransportesApp.Infrastructure.Maps
 {
-    public class GoogleMapsService : IGoogleMapsService
+    public class GoogleMapsService : IMapsService
     {
         private static readonly JsonSerializerOptions JsonOptions = new()
         {

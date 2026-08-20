@@ -36,8 +36,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<MotoristaService>();
             builder.Services.AddScoped<CorridaService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
-            builder.Services.AddHttpClient<IMapsService, LocationIqService>();
-
+            builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {
