@@ -26,4 +26,17 @@ namespace TransportesApp.Application.DTOs
         DateTime DataCadastro,
         EnderecoResponse Endereco
     );
+
+    // Versão enxuta, sem CPF/CNH, pra um cliente ver motoristas disponíveis sem expor dados sensíveis de outra pessoa.
+    public record MotoristaDisponivelResponse(
+        Guid Id,
+        string PlacaVeiculo,
+        string ModeloVeiculo,
+        double AvaliacaoMedia,
+        double? LatitudeAtual,
+        double? LongitudeAtual,
+        double? DistanciaKm
+    );
+
+    public record AtualizarLocalizacaoRequest(double Latitude, double Longitude);
 }

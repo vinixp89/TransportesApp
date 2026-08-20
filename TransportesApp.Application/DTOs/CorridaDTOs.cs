@@ -2,6 +2,8 @@
 
 namespace TransportesApp.Application.DTOs
 {
+    // Latitude/Longitude são opcionais: se não vierem, o backend descobre sozinho a partir do
+    // endereço em texto, usando o Geocoding do Google Maps.
     public record EnderecoRequest
         (
             string Logradouro,
@@ -9,16 +11,17 @@ namespace TransportesApp.Application.DTOs
             string Bairro,
             string Cidade,
             string Estado,
-            double Latitude,
-            double Longitude,
-            string? Complemento
+            string? Complemento = null,
+            double? Latitude = null,
+            double? Longitude = null
         );
 
+    // A distância não vem mais do cliente — o backend calcula via Google Maps a partir de Origem/Destino,
+    // pra evitar que alguém manipule a requisição e informe uma distância falsa pra pagar menos.
     public record CriarCorridasRequest
         (
             EnderecoRequest Origem,
             EnderecoRequest Destino,
-            double DistanciaEstimadaKm,
             TipoConsumo TipoConsumo,
             Guid? PacoteCorridasId
         );

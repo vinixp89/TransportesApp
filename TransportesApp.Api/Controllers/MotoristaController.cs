@@ -45,6 +45,17 @@ namespace TransportesApp.Api.Controllers
             return Ok(motoristas);
         }
 
+        // Versão pro cliente: sem CPF/CNH. Se passar latitude/longitude, calcula e ordena por distância;
+        // "raioKm" (opcional) filtra só quem está dentro desse raio.
+        [Authorize(Roles = "Cliente")]
+        [HttpGet("disponiveis-resumo")]
+        public async Task<IActionResult> ListarDisponiveisResumo(
+            [FromQuery] double? latitude, [FromQuery] double? longitude, [FromQuery] double? raioKm)
+        {
+            var motoristas = await _motoristaService.ListarDisponiveisResumoAsync(latitude, longitude, raioKm);
+            return Ok(motoristas);
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> ObterPorId(Guid id)
         {
@@ -91,6 +102,21 @@ namespace TransportesApp.Api.Controllers
 
             if (motorista is null)
                 return BadRequest(new { mensagem = "Cadastre-se como motorista antes de alterar o status." });
+
+            return Ok(motorista);
+        }
+
+        [Authorize(Roles = "Motorista")]
+        [HttpPatch("localizacao")]
+        public async Task<IActionResult> AtualizarLocalizacao([FromBody] AtualizarLocalizacaoRequest request)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.AtualizarLocalizacaoAsync(usuarioId, request.Latitude, request.Longitude);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de atualizar a localização." });
 
             return Ok(motorista);
         }

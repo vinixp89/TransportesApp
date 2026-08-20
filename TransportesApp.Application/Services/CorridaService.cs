@@ -8,24 +8,29 @@ namespace TransportesApp.Application.Services
     public class CorridaService
     {
         private readonly ICorridaRepository _corridaRepository;
+        private readonly IMapsService _mapsService;
 
-        public CorridaService(ICorridaRepository corridaRepository)
+        public CorridaService(ICorridaRepository corridaRepository, IMapsService mapsService)
         {
             _corridaRepository = corridaRepository;
+            _mapsService = mapsService;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
         {
-            var origem = MapearEndereco(request.Origem);
-            var destino = MapearEndereco(request.Destino);
+            var origem = await ResolverEnderecoAsync(request.Origem);
+            var destino = await ResolverEnderecoAsync(request.Destino);
 
-            var faixa = FaixaDistancia.ClassificarPorDistancia(request.DistanciaEstimadaKm);
+            var distanciaEstimadaKm = await _mapsService.CalcularDistanciaKmAsync(
+                origem.Latitude, origem.Longitude, destino.Latitude, destino.Longitude);
+
+            var faixa = FaixaDistancia.ClassificarPorDistancia(distanciaEstimadaKm);
 
             var corrida = new Corrida(
                 clienteId: clienteId,
                 origem: origem,
                 destino: destino,
-                distanciaEstimadaKm: request.DistanciaEstimadaKm,
+                distanciaEstimadaKm: distanciaEstimadaKm,
                 faixa: faixa,
                 tipoConsumo: request.TipoConsumo,
                 pacoteCorridasId: request.PacoteCorridasId
@@ -106,19 +111,37 @@ namespace TransportesApp.Application.Services
             return MapearParaResponse(corrida);
         }
 
-        private static Endereco MapearEndereco(EnderecoRequest request)
+        // Se a latitude/longitude não vier no request, geocodifica o endereço em texto via LocationIQ.
+        private async Task<Endereco> ResolverEnderecoAsync(EnderecoRequest request)
         {
+            double latitude;
+            double longitude;
+
+            if (request.Latitude is not null && request.Longitude is not null)
+            {
+                latitude = request.Latitude.Value;
+                longitude = request.Longitude.Value;
+            }
+            else
+            {
+                var enderecoTexto = FormatarEnderecoParaGeocodificacao(request);
+                (latitude, longitude) = await _mapsService.GeocodificarAsync(enderecoTexto);
+            }
+
             return new Endereco(
                 logradouro: request.Logradouro,
                 numero: request.Numero,
                 bairro: request.Bairro,
                 cidade: request.Cidade,
                 estado: request.Estado,
-                latitude: request.Latitude,
-                longitude: request.Longitude,
+                latitude: latitude,
+                longitude: longitude,
                 complemento: request.Complemento
             );
         }
+
+        private static string FormatarEnderecoParaGeocodificacao(EnderecoRequest request)
+            => $"{request.Logradouro}, {request.Numero}, {request.Bairro}, {request.Cidade}, {request.Estado}, Brasil";
 
         private static EnderecoResponse MapearEnderecoResponse(Endereco endereco)
         {

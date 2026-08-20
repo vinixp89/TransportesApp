@@ -34,8 +34,15 @@ namespace TransportesApp.Api.Controllers
             if (cliente is null)
                 return BadRequest(new { mensagem = "Cadastre-se como cliente antes de solicitar corridas." });
 
-            var corrida = await _corridaService.CriarAsync(request, cliente.Id);
-            return Ok(corrida);
+            try
+            {
+                var corrida = await _corridaService.CriarAsync(request, cliente.Id);
+                return Ok(corrida);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
         }
 
         [Authorize(Roles = "Admin")]
