@@ -11,44 +11,34 @@ namespace TransportesApp.Application.Services
         private readonly ICorridaRepository _corridaRepository;
         private readonly IMapsService _mapsService;
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
+        private readonly IMotoristaRepository _motoristaRepository;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
             IMapsService mapsService,
-            IPacoteCorridasRepository pacoteCorridasRepository)
+            IPacoteCorridasRepository pacoteCorridasRepository,
+            IMotoristaRepository motoristaRepository)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
             _pacoteCorridasRepository = pacoteCorridasRepository;
+            _motoristaRepository = motoristaRepository;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
         {
-            var avisos = new List<string>();
-
-            var (origem, origemParcial) = await ResolverEnderecoAsync(request.Origem);
-            if (origemParcial)
-                avisos.Add("O endereço de origem foi localizado com correspondência parcial pelo Google Maps — confira se está correto.");
-
-            var (destino, destinoParcial) = await ResolverEnderecoAsync(request.Destino);
-            if (destinoParcial)
-                avisos.Add("O endereço de destino foi localizado com correspondência parcial pelo Google Maps — confira se está correto.");
-
-            var distanciaEstimadaKm = await _mapsService.CalcularDistanciaKmAsync(
-                origem.Latitude, origem.Longitude, destino.Latitude, destino.Longitude);
-
-            var faixa = FaixaDistancia.ClassificarPorDistancia(distanciaEstimadaKm);
+            var rota = await CalcularRotaAsync(request.Origem, request.Destino);
 
             // Se a corrida é por pacote, valida que o pacote existe, é do cliente, é da faixa certa
             // e ainda tem corridas disponíveis — só depois disso ele é efetivamente consumido.
-            var pacote = await ValidarPacoteAsync(request, clienteId, faixa);
+            var pacote = await ValidarPacoteAsync(request, clienteId, rota.Faixa);
 
             var corrida = new Corrida(
                 clienteId: clienteId,
-                origem: origem,
-                destino: destino,
-                distanciaEstimadaKm: distanciaEstimadaKm,
-                faixa: faixa,
+                origem: rota.Origem,
+                destino: rota.Destino,
+                distanciaEstimadaKm: rota.DistanciaKm,
+                faixa: rota.Faixa,
                 tipoConsumo: request.TipoConsumo,
                 pacoteCorridasId: request.PacoteCorridasId
             );
@@ -61,8 +51,56 @@ namespace TransportesApp.Application.Services
                 await _pacoteCorridasRepository.AtualizarAsync(pacote);
             }
 
-            return MapearParaResponse(corrida, avisos.Count > 0 ? avisos : null);
+            return MapearParaResponse(corrida, rota.Avisos.Count > 0 ? rota.Avisos : null);
         }
+
+        // Calcula rota/faixa/valor sem persistir nada — pra tela de confirmação mostrar preço e faixa
+        // antes do cliente efetivamente solicitar a corrida.
+        public async Task<EstimarCorridaResponse> EstimarAsync(EstimarCorridaRequest request)
+        {
+            var rota = await CalcularRotaAsync(request.Origem, request.Destino);
+
+            return new EstimarCorridaResponse(
+                MapearEnderecoResponse(rota.Origem),
+                MapearEnderecoResponse(rota.Destino),
+                rota.DistanciaKm,
+                rota.DuracaoMinutos,
+                rota.Faixa.Cor,
+                rota.Faixa.PrecoAvulso,
+                rota.Avisos.Count > 0 ? rota.Avisos : null
+            );
+        }
+
+        // Geocodifica origem/destino, calcula distância+duração via API de mapas e classifica a faixa.
+        // Usado tanto por CriarAsync (que persiste) quanto por EstimarAsync (que só devolve o cálculo).
+        private async Task<RotaCalculada> CalcularRotaAsync(EnderecoRequest origemRequest, EnderecoRequest destinoRequest)
+        {
+            var avisos = new List<string>();
+
+            var (origem, origemParcial) = await ResolverEnderecoAsync(origemRequest);
+            if (origemParcial)
+                avisos.Add("O endereço de origem foi localizado com correspondência parcial pelo Google Maps — confira se está correto.");
+
+            var (destino, destinoParcial) = await ResolverEnderecoAsync(destinoRequest);
+            if (destinoParcial)
+                avisos.Add("O endereço de destino foi localizado com correspondência parcial pelo Google Maps — confira se está correto.");
+
+            var (distanciaKm, duracaoMinutos) = await _mapsService.CalcularRotaAsync(
+                origem.Latitude, origem.Longitude, destino.Latitude, destino.Longitude);
+
+            var faixa = FaixaDistancia.ClassificarPorDistancia(distanciaKm);
+
+            return new RotaCalculada(origem, destino, distanciaKm, duracaoMinutos, faixa, avisos);
+        }
+
+        private sealed record RotaCalculada(
+            Endereco Origem,
+            Endereco Destino,
+            double DistanciaKm,
+            double? DuracaoMinutos,
+            FaixaDistancia Faixa,
+            List<string> Avisos
+        );
 
         // Não consome o pacote aqui — só valida e devolve, pra só debitar depois que a corrida
         // já tiver sido persistida com sucesso (evita descontar corrida do pacote e a criação falhar depois).
@@ -114,9 +152,18 @@ namespace TransportesApp.Application.Services
             if (corrida is null)
                 return null;
 
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+
+            if (motorista is null)
+                throw new InvalidOperationException("Motorista não encontrado.");
+
+            // Já valida internamente que o motorista está Disponivel antes de mudar pra EmCorrida.
+            motorista.IniciarCorrida();
+
             corrida.AtribuirMotorista(motoristaId);
 
             await _corridaRepository.AtualizarAsync(corrida);
+            await _motoristaRepository.AtualizarAsync(motorista);
 
             return MapearParaResponse(corrida);
         }
@@ -146,6 +193,17 @@ namespace TransportesApp.Application.Services
 
             await _corridaRepository.AtualizarAsync(corrida);
 
+            if (corrida.MotoristaId is not null)
+            {
+                var motorista = await _motoristaRepository.ObterPorIdAsync(corrida.MotoristaId.Value);
+
+                if (motorista is not null)
+                {
+                    motorista.FinalizarCorrida();
+                    await _motoristaRepository.AtualizarAsync(motorista);
+                }
+            }
+
             return new FinalizarCorridaResponse(estourouFaixa, MapearParaResponse(corrida));
         }
 
@@ -159,6 +217,18 @@ namespace TransportesApp.Application.Services
             corrida.Cancelar();
 
             await _corridaRepository.AtualizarAsync(corrida);
+
+            // Se já tinha motorista atribuído (e ele estava em corrida por causa dela), libera de volta.
+            if (corrida.MotoristaId is not null)
+            {
+                var motorista = await _motoristaRepository.ObterPorIdAsync(corrida.MotoristaId.Value);
+
+                if (motorista is not null && motorista.Status == StatusMotorista.EmCorrida)
+                {
+                    motorista.FinalizarCorrida();
+                    await _motoristaRepository.AtualizarAsync(motorista);
+                }
+            }
 
             return MapearParaResponse(corrida);
         }
@@ -203,6 +273,10 @@ namespace TransportesApp.Application.Services
 
         private static CorridaResponse MapearParaResponse(Corrida corrida, IReadOnlyList<string>? avisosEndereco = null)
         {
+            // ValorReferencia não é gravado na corrida — é derivado da faixa contratada na hora de responder,
+            // pra sempre refletir a tabela de preços atual em vez de um valor que poderia ficar desatualizado.
+            var valorReferencia = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).PrecoAvulso;
+
             return new CorridaResponse(
                 corrida.Id,
                 corrida.ClienteId,
@@ -212,6 +286,7 @@ namespace TransportesApp.Application.Services
                 corrida.DistanciaEstimadaKm,
                 corrida.DistanciaRealKm,
                 corrida.FaixaContratada,
+                valorReferencia,
                 corrida.TipoConsumo,
                 corrida.Status,
                 corrida.DataSolicitacao,

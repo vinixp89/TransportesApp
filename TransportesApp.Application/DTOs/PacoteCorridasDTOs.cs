@@ -16,4 +16,10 @@ namespace TransportesApp.Application.DTOs
             decimal PrecoPago,
             DateTime DataCompra
         );
+
+    // Catálogo de pacotes disponíveis pra compra — uma entrada por faixa, com o preço calculado
+    // pra cada tamanho de pacote (FaixaDistancia.TamanhosPacoteDisponiveis).
+    public record TamanhoPacoteResponse(int Quantidade, decimal Preco);
+
+    public record CatalogoPacoteResponse(CorFaixa Faixa, decimal PrecoAvulso, IReadOnlyList<TamanhoPacoteResponse> Tamanhos);
 }

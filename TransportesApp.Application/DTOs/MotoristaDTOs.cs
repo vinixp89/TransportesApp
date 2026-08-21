@@ -1,3 +1,5 @@
+using TransportesApp.Domain.Enums;
+
 namespace TransportesApp.Application.DTOs
 {
     public record CriarMotoristaRequest(
@@ -24,7 +26,10 @@ namespace TransportesApp.Application.DTOs
         string ModeloVeiculo,
         double AvaliacaoMeida,
         DateTime DataCadastro,
-        EnderecoResponse Endereco
+        EnderecoResponse Endereco,
+        StatusMotorista Status,
+        double? LatitudeAtual,
+        double? LongitudeAtual
     );
 
     // Versão enxuta, sem CPF/CNH, pra um cliente ver motoristas disponíveis sem expor dados sensíveis de outra pessoa.

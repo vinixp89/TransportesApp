@@ -20,6 +20,16 @@ namespace TransportesApp.Api.Controllers
             _clienteService = clienteService;
         }
 
+        // Lista as faixas com o preço avulso e o preço calculado de cada tamanho de pacote —
+        // usado pra montar a tela "pacotes disponíveis" antes de comprar. Não depende de cliente
+        // cadastrado, só de estar autenticado (herda o [Authorize] da classe).
+        [HttpGet("catalogo")]
+        public IActionResult Catalogo()
+        {
+            var catalogo = _pacoteCorridasService.ObterCatalogo();
+            return Ok(catalogo);
+        }
+
         [Authorize(Roles = "Cliente")]
         [HttpPost]
         public async Task<IActionResult> Criar([FromBody] CriarPacoteCorridasRequest request)

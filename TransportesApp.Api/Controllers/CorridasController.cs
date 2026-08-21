@@ -22,6 +22,23 @@ namespace TransportesApp.Api.Controllers
             _motoristaService = motoristaService;
         }
 
+        // Calcula rota/faixa/valor SEM criar a corrida — usado pra tela de confirmação
+        // ("essa corrida vai custar X — confirma?") antes do POST que efetivamente solicita.
+        [Authorize(Roles = "Cliente")]
+        [HttpPost("estimar")]
+        public async Task<IActionResult> Estimar([FromBody] EstimarCorridaRequest request)
+        {
+            try
+            {
+                var estimativa = await _corridaService.EstimarAsync(request);
+                return Ok(estimativa);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
         [Authorize(Roles = "Cliente")]
         [HttpPost]
         public async Task<IActionResult> Criar([FromBody] CriarCorridasRequest request)

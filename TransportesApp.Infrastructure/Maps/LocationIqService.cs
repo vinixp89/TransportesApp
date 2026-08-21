@@ -25,7 +25,7 @@ namespace TransportesApp.Infrastructure.Maps
             _configuration = configuration;
         }
 
-        public async Task<double> CalcularDistanciaKmAsync(
+        public async Task<(double DistanciaKm, double? DuracaoMinutos)> CalcularRotaAsync(
             double latitudeOrigem, double longitudeOrigem,
             double latitudeDestino, double longitudeDestino)
         {
@@ -37,7 +37,7 @@ namespace TransportesApp.Infrastructure.Maps
                 $"{FormatarNumero(longitudeDestino)},{FormatarNumero(latitudeDestino)}";
 
             var url = $"https://us1.locationiq.com/v1/matrix/driving/{coordenadas}" +
-                      $"?key={apiKey}&sources=0&destinations=1&annotations=distance";
+                      $"?key={apiKey}&sources=0&destinations=1&annotations=distance,duration";
 
             LocationIqMatrixResponse? resposta;
 
@@ -51,14 +51,17 @@ namespace TransportesApp.Infrastructure.Maps
             }
 
             var distanciaMetros = resposta?.Distances?.FirstOrDefault()?.FirstOrDefault();
+            var duracaoSegundos = resposta?.Durations?.FirstOrDefault()?.FirstOrDefault();
 
             if (resposta is null || resposta.Code != "Ok" || distanciaMetros is null)
                 throw new InvalidOperationException(
                     $"LocationIQ retornou um erro ao calcular a rota (status: {resposta?.Code ?? "sem resposta"}). " +
                     "Confira se as coordenadas informadas são válidas.");
 
-            // A Matrix API retorna a distância em metros.
-            return distanciaMetros.Value / 1000.0;
+            // A Matrix API retorna distância em metros e duração em segundos.
+            var duracaoMinutos = duracaoSegundos is not null ? duracaoSegundos.Value / 60.0 : (double?)null;
+
+            return (distanciaMetros.Value / 1000.0, duracaoMinutos);
         }
 
         public async Task<(double Latitude, double Longitude, bool CorrespondenciaParcial)> GeocodificarAsync(string endereco)
@@ -96,6 +99,82 @@ namespace TransportesApp.Infrastructure.Maps
             return (latitude, longitude, false);
         }
 
+        public async Task<IReadOnlyList<(string PlaceId, string Descricao)>> AutocompletarEnderecoAsync(string texto)
+        {
+            if (string.IsNullOrWhiteSpace(texto) || texto.Trim().Length < 3)
+                return Array.Empty<(string, string)>();
+
+            var apiKey = ObterApiKey();
+            var textoCodificado = Uri.EscapeDataString(texto);
+            var url = $"https://us1.locationiq.com/v1/autocomplete?key={apiKey}&q={textoCodificado}" +
+                      "&countrycodes=br&limit=5&format=json";
+
+            List<LocationIqAutocompleteResult>? resposta;
+
+            try
+            {
+                resposta = await _httpClient.GetFromJsonAsync<List<LocationIqAutocompleteResult>>(url, JsonOptions);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new InvalidOperationException("Não foi possível contatar o serviço de mapas no momento.", ex);
+            }
+
+            if (resposta is null)
+                return Array.Empty<(string, string)>();
+
+            // O LocationIQ já devolve o endereço completo (com bairro/cidade/estado/coordenadas) direto
+            // no autocomplete, sem uma etapa de "detalhes" separada como a do Google. Então o "PlaceId"
+            // aqui não é um id de verdade — é o próprio resultado codificado, pra ObterDetalhesEnderecoAsync
+            // conseguir decodificar sem precisar de outra chamada (nem de guardar estado entre requisições).
+            return resposta
+                .Where(r => !string.IsNullOrWhiteSpace(r.DisplayName))
+                .Select(r => (CodificarComoPlaceId(r), r.DisplayName!))
+                .ToList();
+        }
+
+        public Task<(string Logradouro, string? Numero, string? Bairro, string Cidade, string Estado, double Latitude, double Longitude)?> ObterDetalhesEnderecoAsync(string placeId)
+        {
+            var resultado = DecodificarPlaceId(placeId);
+
+            if (resultado is null
+                || !double.TryParse(resultado.Lat, NumberStyles.Float, CultureInfo.InvariantCulture, out var latitude)
+                || !double.TryParse(resultado.Lon, NumberStyles.Float, CultureInfo.InvariantCulture, out var longitude))
+            {
+                return Task.FromResult<(string, string?, string?, string, string, double, double)?>(null);
+            }
+
+            var endereco = resultado.Address;
+            var logradouro = endereco?.Road ?? "";
+            var numero = endereco?.HouseNumber;
+            var bairro = endereco?.Suburb ?? endereco?.Neighbourhood;
+            var cidade = endereco?.City ?? endereco?.Town ?? endereco?.Municipality ?? "";
+            var estado = endereco?.State ?? "";
+
+            return Task.FromResult<(string, string?, string?, string, string, double, double)?>(
+                (logradouro, numero, bairro, cidade, estado, latitude, longitude));
+        }
+
+        private static string CodificarComoPlaceId(LocationIqAutocompleteResult resultado)
+        {
+            var json = JsonSerializer.Serialize(resultado);
+            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        }
+
+        private static LocationIqAutocompleteResult? DecodificarPlaceId(string placeId)
+        {
+            try
+            {
+                var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(placeId));
+                return JsonSerializer.Deserialize<LocationIqAutocompleteResult>(json, JsonOptions);
+            }
+            catch
+            {
+                // PlaceId inválido/adulterado — trata igual a "não encontrado" em vez de derrubar a API.
+                return null;
+            }
+        }
+
         private string ObterApiKey()
         {
             var apiKey = _configuration["LocationIq:ApiKey"];
@@ -129,5 +208,35 @@ namespace TransportesApp.Infrastructure.Maps
 
         // Matriz [origem][destino], em metros.
         public List<List<double?>>? Distances { get; set; }
+
+        // Matriz [origem][destino], em segundos.
+        public List<List<double?>>? Durations { get; set; }
+    }
+
+    // Modelo mínimo pra desserializar a resposta da Autocomplete API do LocationIQ (formato Nominatim).
+    // Referência: https://docs.locationiq.com/reference/autocomplete
+    internal class LocationIqAutocompleteResult
+    {
+        [JsonPropertyName("display_name")]
+        public string? DisplayName { get; set; }
+
+        public string? Lat { get; set; }
+        public string? Lon { get; set; }
+        public LocationIqAddress? Address { get; set; }
+    }
+
+    internal class LocationIqAddress
+    {
+        public string? Road { get; set; }
+
+        [JsonPropertyName("house_number")]
+        public string? HouseNumber { get; set; }
+
+        public string? Suburb { get; set; }
+        public string? Neighbourhood { get; set; }
+        public string? City { get; set; }
+        public string? Town { get; set; }
+        public string? Municipality { get; set; }
+        public string? State { get; set; }
     }
 }

@@ -46,13 +46,33 @@ namespace TransportesApp.Application.DTOs
             double DistanciaEstimadaKm,
             double? DistanciaRealKm,
             CorFaixa FaixaContratada,
+            // Valor de tabela da faixa contratada (o mesmo preço fixo, independente de ter sido paga
+            // avulsa ou com pacote) — calculado a partir de FaixaDistancia, não é gravado no banco.
+            decimal ValorReferencia,
             TipoConsumo TipoConsumo,
             StatusCorrida Status,
             DateTime DataSolicitacao,
-           IReadOnlyList<string>? AvisosEndereco = null
+            // Só é preenchido na criação da corrida, quando o Google não teve certeza total de algum
+            // endereço informado (correspondência parcial). Fica null nas demais consultas.
+            IReadOnlyList<string>? AvisosEndereco = null
         );
 
     public record FinalizarCorridaRequest(double DistanciaReal);
 
-    public record FinalizarCorridaResponse(bool EstouroFaixa, CorridaResponse Corrida);
+    public record FinalizarCorridaResponse(bool EstouroFaixa,CorridaResponse Corrida);
+
+    // Calcula rota, faixa e valor SEM criar a corrida — usado pra mostrar uma tela de confirmação
+    // ("essa corrida vai custar X, faixa Y — confirma?") antes de efetivamente solicitar.
+    public record EstimarCorridaRequest(EnderecoRequest Origem, EnderecoRequest Destino);
+
+    public record EstimarCorridaResponse
+        (
+            EnderecoResponse Origem,
+            EnderecoResponse Destino,
+            double DistanciaEstimadaKm,
+            double? DuracaoEstimadaMinutos,
+            CorFaixa Faixa,
+            decimal ValorReferencia,
+            IReadOnlyList<string>? AvisosEndereco
+        );
 }

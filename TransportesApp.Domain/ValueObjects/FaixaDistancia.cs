@@ -57,5 +57,8 @@ namespace TransportesApp.Domain.ValueObjects
         }
 
         public static FaixaDistancia ObterPorCor(CorFaixa cor) => Faixas.First(f => f.Cor == cor);
+
+        // Exposto só como leitura — usado pra montar o catálogo de pacotes disponíveis pra compra.
+        public static IReadOnlyList<FaixaDistancia> ListarTodas() => Faixas.AsReadOnly();
     }
 }

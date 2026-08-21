@@ -33,12 +33,29 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ICorridaRepository, CorridaRepository>();
             builder.Services.AddScoped<IMotoristaRepository, MotoristaRepository>();
             builder.Services.AddScoped<IPacoteCorridasRepository, PacoteCorridasRepository>();
+            builder.Services.AddScoped<ICarteiraRepository, CarteiraRepository>();
+            builder.Services.AddScoped<ITransacaoCarteiraRepository, TransacaoCarteiraRepository>();
             builder.Services.AddScoped<ClienteService>();
             builder.Services.AddScoped<MotoristaService>();
             builder.Services.AddScoped<CorridaService>();
             builder.Services.AddScoped<PacoteCorridasService>();
+            builder.Services.AddScoped<CarteiraService>();
+            builder.Services.AddScoped<EnderecoAutocompleteService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
+
+            // Libera o front-end (React rodando em localhost:5173, porta padrão do Vite) a chamar a API.
+            // Sem isso o navegador bloqueia as requisições por CORS mesmo a API respondendo normalmente.
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("FrontendDev", policy =>
+                {
+                    policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
+                });
+            });
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
@@ -137,7 +154,10 @@ namespace TransportesApp.Api
             }
 
             app.UseHttpsRedirection();
-            app.UseAuthentication();  
+
+            app.UseCors("FrontendDev");
+
+            app.UseAuthentication();
 
             app.UseAuthorization();
 

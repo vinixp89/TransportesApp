@@ -192,7 +192,10 @@ namespace TransportesApp.Application.Services
                     motorista.Endereco.Latitude,
                     motorista.Endereco.Longitude,
                     motorista.Endereco.Complemento
-                )
+                ),
+                motorista.Status,
+                motorista.LatitudeAtual,
+                motorista.LongitudeAtual
             );
         }
     }

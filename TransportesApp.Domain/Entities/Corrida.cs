@@ -40,7 +40,10 @@ namespace TransportesApp.Domain.Entities
             DistanciaEstimadaKm = distanciaEstimadaKm;
             FaixaContratada = faixa.Cor;
             TipoConsumo = tipoConsumo;
-            PacoteCorridasId = pacoteCorridasId;
+            // Em corrida avulsa, ignora qualquer pacoteCorridasId que venha no request (ex: o Guid de
+            // exemplo que o Swagger preenche sozinho) — só grava o Id do pacote quando o consumo é por Pacote.
+            // Sem isso, um Guid "lixo" nesse campo tenta ser salvo e quebra a FK com PacotesCorridas.
+            PacoteCorridasId = tipoConsumo == TipoConsumo.Pacote ? pacoteCorridasId : null;
             Status = StatusCorrida.Solicitada;
             DataSolicitacao = DateTime.UtcNow;
         
