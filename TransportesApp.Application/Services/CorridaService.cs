@@ -12,17 +12,20 @@ namespace TransportesApp.Application.Services
         private readonly IMapsService _mapsService;
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
         private readonly IMotoristaRepository _motoristaRepository;
+        private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
             IMapsService mapsService,
             IPacoteCorridasRepository pacoteCorridasRepository,
-            IMotoristaRepository motoristaRepository)
+            IMotoristaRepository motoristaRepository,
+            IAssinaturaPlanoRepository assinaturaPlanoRepository)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
             _pacoteCorridasRepository = pacoteCorridasRepository;
             _motoristaRepository = motoristaRepository;
+            _assinaturaPlanoRepository = assinaturaPlanoRepository;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
@@ -32,6 +35,14 @@ namespace TransportesApp.Application.Services
             // Se a corrida é por pacote, valida que o pacote existe, é do cliente, é da faixa certa
             // e ainda tem corridas disponíveis — só depois disso ele é efetivamente consumido.
             var pacote = await ValidarPacoteAsync(request, clienteId, rota.Faixa);
+
+            // Assinatura ativa do cliente (se tiver) — usada tanto pra validar/consumir o benefício de
+            // corrida grátis (TipoConsumo.BeneficioPlano) quanto pra registrar que uma corrida paga foi
+            // feita no mês (o que libera esse benefício pra próxima vez). Busca uma vez só e reaproveita.
+            var assinatura = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId);
+
+            if (request.TipoConsumo == TipoConsumo.BeneficioPlano)
+                ValidarBeneficioPlano(assinatura, rota.Faixa);
 
             var corrida = new Corrida(
                 clienteId: clienteId,
@@ -51,7 +62,48 @@ namespace TransportesApp.Application.Services
                 await _pacoteCorridasRepository.AtualizarAsync(pacote);
             }
 
+            if (assinatura is not null)
+            {
+                var agora = DateTime.UtcNow;
+
+                // Corrida grátis consome o benefício; qualquer outra (avulsa ou por pacote) conta como
+                // "corrida paga" e libera o benefício pro resto do mês (ver AssinaturaPlano).
+                if (request.TipoConsumo == TipoConsumo.BeneficioPlano)
+                    assinatura.UsarBeneficioGratis(agora);
+                else
+                    assinatura.RegistrarCorridaPaga(agora);
+
+                await _assinaturaPlanoRepository.AtualizarAsync(assinatura);
+            }
+
             return MapearParaResponse(corrida, rota.Avisos.Count > 0 ? rota.Avisos : null);
+        }
+
+        // Valida que o cliente pode mesmo usar a corrida grátis do plano: precisa ter assinatura ativa,
+        // o plano precisa ter esse benefício, a corrida solicitada precisa ser exatamente da cor que o
+        // plano libera de graça, e o benefício precisa estar disponível (já fez 1 corrida paga no mês e
+        // ainda não usou a grátis). Lançado antes de criar a corrida, igual ValidarPacoteAsync faz.
+        private static void ValidarBeneficioPlano(AssinaturaPlano? assinatura, FaixaDistancia faixa)
+        {
+            if (assinatura is null)
+                throw new InvalidOperationException("Você não tem uma assinatura ativa com esse benefício.");
+
+            var plano = PlanoAssinatura.ObterPorTipo(assinatura.Tipo);
+
+            if (plano.CorGratisPorMes is null)
+                throw new InvalidOperationException($"O plano {plano.Nome} não inclui corrida grátis mensal.");
+
+            if (plano.CorGratisPorMes != faixa.Cor)
+                throw new InvalidOperationException(
+                    $"O benefício do seu plano vale só pra corridas da faixa {plano.CorGratisPorMes}, mas essa corrida caiu na faixa {faixa.Cor}.");
+
+            var agora = DateTime.UtcNow;
+
+            if (!assinatura.CorridaPagaLiberouBeneficioNoMes(agora))
+                throw new InvalidOperationException("Faça uma corrida paga (avulsa ou por pacote) neste mês pra liberar sua corrida grátis.");
+
+            if (assinatura.BeneficioJaUsadoNoMes(agora))
+                throw new InvalidOperationException("Você já usou sua corrida grátis deste mês — ela não é acumulável.");
         }
 
         // Calcula rota/faixa/valor sem persistir nada — pra tela de confirmação mostrar preço e faixa

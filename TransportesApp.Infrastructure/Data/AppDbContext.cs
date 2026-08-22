@@ -27,6 +27,7 @@ namespace TransportesApp.Infrastructure.Data
         public DbSet<PacoteCorridas> PacotesCorridas => Set<PacoteCorridas>();
         public DbSet<Carteira> Carteiras => Set<Carteira>();
         public DbSet<TransacaoCarteira> TransacoesCarteira => Set<TransacaoCarteira>();
+        public DbSet<AssinaturaPlano> AssinaturasPlano => Set<AssinaturaPlano>();
 
 
        protected override void OnModelCreating(ModelBuilder modelBuilder)

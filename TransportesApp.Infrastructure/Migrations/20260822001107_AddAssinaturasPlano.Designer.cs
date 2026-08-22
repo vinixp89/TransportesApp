@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TransportesApp.Infrastructure.Data;
@@ -11,9 +12,11 @@ using TransportesApp.Infrastructure.Data;
 namespace TransportesApp.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260822001107_AddAssinaturasPlano")]
+    partial class AddAssinaturasPlano
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -158,24 +161,11 @@ namespace TransportesApp.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int?>("AnoMesBeneficio")
-                        .HasColumnType("integer");
-
                     b.Property<bool>("Ativa")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("BeneficioUsadoNoMes")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
                     b.Property<Guid>("ClienteId")
                         .HasColumnType("uuid");
-
-                    b.Property<bool>("CorridaPagaNoMes")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
 
                     b.Property<DateTime?>("DataCancelamento")
                         .HasColumnType("timestamp with time zone");
