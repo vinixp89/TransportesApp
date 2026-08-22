@@ -63,8 +63,8 @@ namespace TransportesApp.Api.Controllers
             if (cliente is null)
                 return BadRequest(new { mensagem = "Cadastre-se como cliente antes de assinar um plano." });
 
-            var assinatura = await _planoService.AssinarAsync(cliente.Id, request.Tipo);
-            return Ok(assinatura);
+            var resultado = await _planoService.AssinarAsync(cliente.Id, request.Tipo, cliente.Email);
+            return Ok(resultado);
         }
 
         [HttpPost("cancelar")]
@@ -79,7 +79,7 @@ namespace TransportesApp.Api.Controllers
             var cancelou = await _planoService.CancelarAsync(cliente.Id);
 
             if (!cancelou)
-                return BadRequest(new { mensagem = "Você não tem uma assinatura ativa pra cancelar." });
+                return BadRequest(new { mensagem = "Você não tem uma assinatura ativa ou pendente pra cancelar." });
 
             return NoContent();
         }

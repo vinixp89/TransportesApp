@@ -9,10 +9,12 @@ namespace TransportesApp.Application.Services
     public class PlanoService
     {
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
+        private readonly PagamentoService _pagamentoService;
 
-        public PlanoService(IAssinaturaPlanoRepository assinaturaPlanoRepository)
+        public PlanoService(IAssinaturaPlanoRepository assinaturaPlanoRepository, PagamentoService pagamentoService)
         {
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
+            _pagamentoService = pagamentoService;
         }
 
         // Não depende do repositório — é só o catálogo fixo do domínio, montado pra exibição.
@@ -24,31 +26,63 @@ namespace TransportesApp.Application.Services
 
         public async Task<AssinaturaPlanoResponse?> ObterAssinaturaAtualAsync(Guid clienteId)
         {
-            var assinatura = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId);
+            // No máximo uma das duas existe ao mesmo tempo (índice único cobre PendentePagamento +
+            // Ativa juntos — ver AssinaturaPlanoConfiguration), então dá pra só tentar as duas em ordem.
+            var assinatura = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId)
+                ?? await _assinaturaPlanoRepository.ObterPendentePorClienteAsync(clienteId);
 
             return assinatura is null ? null : MapearParaResponse(assinatura);
         }
 
-        // Assinar um plano novo cancela a assinatura ativa atual (se existir) e cria uma nova —
-        // não dá pra ter duas assinaturas ativas ao mesmo tempo (ver índice único em
-        // AssinaturaPlanoConfiguration).
-        public async Task<AssinaturaPlanoResponse> AssinarAsync(Guid clienteId, TipoPlano tipo)
+        // Assinar um plano pago cria a assinatura como PendentePagamento e devolve a URL de checkout do
+        // Mercado Pago pra redirecionar o cliente — ela só vira Ativa de fato quando o PagamentoService
+        // confirmar o pagamento (webhook ou sincronização manual, ver PagamentosController). O plano
+        // Básico (grátis) é o único caso que ativa na hora, sem passar pelo gateway.
+        public async Task<AssinarPlanoResponse> AssinarAsync(Guid clienteId, TipoPlano tipo, string emailPagador)
         {
-            var atual = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId);
+            var plano = PlanoAssinatura.ObterPorTipo(tipo);
 
-            if (atual is not null)
+            var ativa = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId);
+            if (ativa is not null && ativa.Tipo == tipo)
+                return new AssinarPlanoResponse(MapearParaResponse(ativa), null);
+
+            // Já tem uma tentativa de assinatura em aberto (talvez de um clique anterior que não foi
+            // até o fim) — cancela ela em vez de deixar penduradas, pra manter só uma preference "viva"
+            // por vez e não ter que gerenciar reaproveitamento de checkout expirado.
+            var pendente = await _assinaturaPlanoRepository.ObterPendentePorClienteAsync(clienteId);
+            if (pendente is not null)
             {
-                if (atual.Tipo == tipo)
-                    return MapearParaResponse(atual);
+                pendente.Cancelar();
+                await _assinaturaPlanoRepository.AtualizarAsync(pendente);
+            }
 
-                atual.Cancelar();
-                await _assinaturaPlanoRepository.AtualizarAsync(atual);
+            if (ativa is not null)
+            {
+                // Trocar de plano cancela o atual já — se o pagamento do novo não for concluído, o
+                // cliente fica sem plano até assinar de novo (mesma ideia de "trocar sempre cria um novo").
+                ativa.Cancelar();
+                await _assinaturaPlanoRepository.AtualizarAsync(ativa);
             }
 
             var nova = new AssinaturaPlano(clienteId, tipo);
             await _assinaturaPlanoRepository.AdicionarAsync(nova);
 
-            return MapearParaResponse(nova);
+            if (plano.PrecoMensal == 0)
+            {
+                nova.Ativar();
+                await _assinaturaPlanoRepository.AtualizarAsync(nova);
+                return new AssinarPlanoResponse(MapearParaResponse(nova), null);
+            }
+
+            var pagamento = await _pagamentoService.IniciarPagamentoAsync(
+                clienteId,
+                TipoReferenciaPagamento.AssinaturaPlano,
+                nova.Id,
+                plano.PrecoMensal,
+                $"Assinatura do plano {plano.Nome} — Vai na Boa",
+                emailPagador);
+
+            return new AssinarPlanoResponse(MapearParaResponse(nova), pagamento.CheckoutUrl);
         }
 
         // Status do benefício de corrida grátis mensal da assinatura ativa do cliente — ver
@@ -75,7 +109,10 @@ namespace TransportesApp.Application.Services
 
         public async Task<bool> CancelarAsync(Guid clienteId)
         {
-            var atual = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId);
+            // Cancela tanto uma assinatura já ativa quanto uma pendente de pagamento — desistir de
+            // pagar também é uma forma válida de "cancelar".
+            var atual = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId)
+                ?? await _assinaturaPlanoRepository.ObterPendentePorClienteAsync(clienteId);
 
             if (atual is null)
                 return false;
@@ -96,7 +133,7 @@ namespace TransportesApp.Application.Services
                 plano.Nome,
                 plano.PrecoMensal,
                 assinatura.DataInicio,
-                assinatura.Ativa
+                assinatura.Status
             );
         }
     }

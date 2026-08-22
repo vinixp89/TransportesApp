@@ -3,9 +3,13 @@ using TransportesApp.Domain.Enums;
 namespace TransportesApp.Domain.Entities
 {
     // Assinatura de um cliente a um dos planos do catálogo (ver PlanoAssinatura). Um cliente tem no
-    // máximo UMA assinatura ativa por vez — assinar outro plano cancela a atual e cria uma nova (é
-    // mais simples que "trocar de plano" na mesma linha, e mantém histórico de todas as assinaturas
-    // já feitas, inclusive as canceladas).
+    // máximo UMA assinatura "em aberto" por vez (pendente de pagamento OU ativa) — assinar outro
+    // plano cancela a atual e cria uma nova (é mais simples que "trocar de plano" na mesma linha, e
+    // mantém histórico de todas as assinaturas já feitas, inclusive as canceladas/recusadas).
+    //
+    // Ciclo de vida (ver StatusAssinatura): nasce PendentePagamento (exceto o plano Básico, que é
+    // grátis e nasce direto Ativa — ver PlanoService.AssinarAsync); Ativar()/MarcarPagamentoRecusado()
+    // são chamados pelo PagamentoService quando o gateway confirma ou recusa o pagamento associado.
     public class AssinaturaPlano
     {
         public Guid Id { get; private set; }
@@ -13,7 +17,7 @@ namespace TransportesApp.Domain.Entities
         public TipoPlano Tipo { get; private set; }
         public DateTime DataInicio { get; private set; }
         public DateTime? DataCancelamento { get; private set; }
-        public bool Ativa { get; private set; }
+        public StatusAssinatura Status { get; private set; }
 
         // Controle do benefício "1 corrida grátis por mês, não acumulável" (ver PlanoAssinatura.CorGratisPorMes).
         // AnoMesBeneficio guarda o mês (AAAAMM, ex: 202608) a que os dois flags abaixo se referem — quando o mês
@@ -32,15 +36,36 @@ namespace TransportesApp.Domain.Entities
             ClienteId = clienteId;
             Tipo = tipo;
             DataInicio = DateTime.UtcNow;
-            Ativa = true;
+            Status = StatusAssinatura.PendentePagamento;
+        }
+
+        // Chamado pelo PagamentoService quando o pagamento associado é aprovado (ou direto pelo
+        // PlanoService, sem pagamento nenhum, no caso do plano Básico que é grátis).
+        public void Ativar()
+        {
+            if (Status is not (StatusAssinatura.PendentePagamento or StatusAssinatura.PagamentoRecusado))
+                throw new InvalidOperationException($"Não é possível ativar uma assinatura com status {Status}.");
+
+            Status = StatusAssinatura.Ativa;
+        }
+
+        // Chamado pelo PagamentoService quando o pagamento associado é recusado/cancelado — fica nesse
+        // estado até o cliente tentar assinar de novo (PlanoService.AssinarAsync trata isso como "sem
+        // assinatura em aberto", então uma nova tentativa cria outra AssinaturaPlano do zero).
+        public void MarcarPagamentoRecusado()
+        {
+            if (Status != StatusAssinatura.PendentePagamento)
+                throw new InvalidOperationException($"Não é possível recusar uma assinatura com status {Status}.");
+
+            Status = StatusAssinatura.PagamentoRecusado;
         }
 
         public void Cancelar()
         {
-            if (!Ativa)
-                throw new InvalidOperationException("Essa assinatura já está cancelada.");
+            if (Status is not (StatusAssinatura.Ativa or StatusAssinatura.PendentePagamento))
+                throw new InvalidOperationException($"Essa assinatura não pode ser cancelada (status atual: {Status}).");
 
-            Ativa = false;
+            Status = StatusAssinatura.Cancelada;
             DataCancelamento = DateTime.UtcNow;
         }
 

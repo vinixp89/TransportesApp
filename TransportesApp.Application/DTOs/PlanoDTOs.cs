@@ -14,7 +14,15 @@ namespace TransportesApp.Application.DTOs
         string NomePlano,
         decimal PrecoMensal,
         DateTime DataInicio,
-        bool Ativa
+        StatusAssinatura Status
+    );
+
+    // Resposta de POST /Planos/assinar — CheckoutUrl vem preenchida quando o plano é pago e o cliente
+    // precisa ser redirecionado pro Mercado Pago pra confirmar; vem null pro plano Básico (grátis, já
+    // ativa na hora) ou quando o cliente já estava assinando exatamente esse plano (nada a pagar de novo).
+    public record AssinarPlanoResponse(
+        AssinaturaPlanoResponse Assinatura,
+        string? CheckoutUrl
     );
 
     // Status do benefício "1 corrida grátis por mês" da assinatura ativa do cliente — usado pela tela

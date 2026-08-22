@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TransportesApp.Domain.Entities;
+using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
 
@@ -17,7 +18,18 @@ namespace TransportesApp.Infrastructure.Repositories
         public async Task<AssinaturaPlano?> ObterAtivaPorClienteAsync(Guid clienteId)
         {
             return await _context.AssinaturasPlano
-                .FirstOrDefaultAsync(a => a.ClienteId == clienteId && a.Ativa);
+                .FirstOrDefaultAsync(a => a.ClienteId == clienteId && a.Status == StatusAssinatura.Ativa);
+        }
+
+        public async Task<AssinaturaPlano?> ObterPendentePorClienteAsync(Guid clienteId)
+        {
+            return await _context.AssinaturasPlano
+                .FirstOrDefaultAsync(a => a.ClienteId == clienteId && a.Status == StatusAssinatura.PendentePagamento);
+        }
+
+        public async Task<AssinaturaPlano?> ObterPorIdAsync(Guid id)
+        {
+            return await _context.AssinaturasPlano.FirstOrDefaultAsync(a => a.Id == id);
         }
 
         public async Task<IEnumerable<AssinaturaPlano>> ListarPorClienteAsync(Guid clienteId)

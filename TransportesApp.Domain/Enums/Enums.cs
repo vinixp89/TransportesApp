@@ -73,4 +73,37 @@
         Premium,
         Diamante
     }
+
+    // PendentePagamento é o valor 0 (padrão) de propósito, igual os outros enums acima: uma assinatura
+    // recém-criada some sempre nesse estado até o gateway confirmar o pagamento — ver AssinaturaPlano.
+    public enum StatusAssinatura
+    {
+        PendentePagamento,
+        Ativa,
+        PagamentoRecusado,
+        Cancelada
+    }
+
+    // A quem um Pagamento se refere — hoje só AssinaturaPlano de fato "escuta" a confirmação (ver
+    // PagamentoService), mas o modelo já nasce genérico pra Pacotes/Corridas entrarem no mesmo fluxo
+    // de pagamento mais pra frente, sem precisar de uma tabela de pagamento por feature.
+    public enum TipoReferenciaPagamento
+    {
+        AssinaturaPlano,
+        PacoteCorridas,
+        Corrida
+    }
+
+    // Status Aprovado/Recusado/Cancelado/EmProcessamento mapeados a partir do "status" que o gateway
+    // (Mercado Pago) devolve — ver MercadoPagoGateway.MapearStatus. Pendente é o valor 0 (padrão): um
+    // Pagamento nasce sempre pendente, antes até de a preference ser criada no gateway.
+    public enum StatusPagamento
+    {
+        Pendente,
+        EmProcessamento,
+        Aprovado,
+        Recusado,
+        Cancelado,
+        Estornado
+    }
 }

@@ -4,12 +4,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using MercadoPago.Config;
 using TransportesApp.Application.Services;
 using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
 using TransportesApp.Infrastructure.Email;
 using TransportesApp.Infrastructure.Maps;
+using TransportesApp.Infrastructure.Pagamentos;
 using TransportesApp.Infrastructure.Repositories;
 using Microsoft.OpenApi;
 
@@ -36,15 +38,26 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ICarteiraRepository, CarteiraRepository>();
             builder.Services.AddScoped<ITransacaoCarteiraRepository, TransacaoCarteiraRepository>();
             builder.Services.AddScoped<IAssinaturaPlanoRepository, AssinaturaPlanoRepository>();
+            builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
+            builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
             builder.Services.AddScoped<ClienteService>();
             builder.Services.AddScoped<MotoristaService>();
             builder.Services.AddScoped<CorridaService>();
             builder.Services.AddScoped<PacoteCorridasService>();
             builder.Services.AddScoped<CarteiraService>();
+            builder.Services.AddScoped<PagamentoService>();
             builder.Services.AddScoped<PlanoService>();
             builder.Services.AddScoped<EnderecoAutocompleteService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
+
+            // Access Token do Mercado Pago é lido uma vez aqui no startup (via User Secrets:
+            // "MercadoPago:AccessToken") e guardado como estado estático do SDK — ver MercadoPagoGateway.
+            // Fica vazio de propósito em appsettings.json; sem ele configurado, qualquer tentativa de
+            // pagamento falha com uma mensagem clara em vez de silenciosamente usar uma conta errada.
+            var mercadoPagoAccessToken = builder.Configuration["MercadoPago:AccessToken"];
+            if (!string.IsNullOrWhiteSpace(mercadoPagoAccessToken))
+                MercadoPagoConfig.AccessToken = mercadoPagoAccessToken;
 
             // Libera o front-end (React rodando em localhost:5173, porta padrão do Vite) a chamar a API.
             // Sem isso o navegador bloqueia as requisições por CORS mesmo a API respondendo normalmente.
