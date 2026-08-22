@@ -40,5 +40,16 @@ namespace TransportesApp.Domain.Entities
 
             Saldo -= valor;
         }
+
+        // Devolve saldo de uma corrida avulsa cancelada com direito a reembolso (ver Corrida.Cancelar e
+        // CorridaService.ReverterConsumoAsync). Mesma mecânica de Recarregar, mas mantido como método
+        // separado pra deixar claro no extrato/código que não é uma recarga paga via Mercado Pago.
+        public void Estornar(decimal valor)
+        {
+            if (valor <= 0)
+                throw new ArgumentException("O valor do estorno precisa ser maior que zero.");
+
+            Saldo += valor;
+        }
     }
 }

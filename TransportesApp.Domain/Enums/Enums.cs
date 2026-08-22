@@ -57,10 +57,14 @@
 
     }
 
+    // Estorno foi adicionado depois (por isso fica por último, valor 2, e não mexe nos valores já
+    // gravados no banco) — lançamento de devolução de saldo quando uma corrida avulsa é cancelada
+    // com direito a reembolso (ver Corrida.Cancelar e CorridaService.ReverterConsumoAsync).
     public enum TipoTransacaoCarteira
     {
         Recarga,
-        Debito
+        Debito,
+        Estorno
     }
 
     // Básico em primeiro (valor 0) pelo mesmo motivo de TipoConsumo.Avulsa: é o padrão seguro pro
@@ -84,14 +88,18 @@
         Cancelada
     }
 
-    // A quem um Pagamento se refere — hoje só AssinaturaPlano de fato "escuta" a confirmação (ver
-    // PagamentoService), mas o modelo já nasce genérico pra Pacotes/Corridas entrarem no mesmo fluxo
-    // de pagamento mais pra frente, sem precisar de uma tabela de pagamento por feature.
+    // A quem um Pagamento se refere — hoje AssinaturaPlano e RecargaCarteira de fato "escutam" a
+    // confirmação (ver PagamentoService), mas o modelo já nasce genérico pra Pacotes/Corridas entrarem
+    // no mesmo fluxo de pagamento mais pra frente, sem precisar de uma tabela de pagamento por feature.
+    // RecargaCarteira foi adicionado depois (por isso fica por último, valor 3, e não mexe nos valores
+    // já gravados no banco) — é a recarga de saldo da carteira via Mercado Pago; corridas avulsas
+    // debitam desse saldo na hora (ver CorridaService), sem precisar de pagamento por corrida.
     public enum TipoReferenciaPagamento
     {
         AssinaturaPlano,
         PacoteCorridas,
-        Corrida
+        Corrida,
+        RecargaCarteira
     }
 
     // Status Aprovado/Recusado/Cancelado/EmProcessamento mapeados a partir do "status" que o gateway

@@ -13,19 +13,25 @@ namespace TransportesApp.Application.Services
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
         private readonly IMotoristaRepository _motoristaRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
+        private readonly ICarteiraRepository _carteiraRepository;
+        private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
             IMapsService mapsService,
             IPacoteCorridasRepository pacoteCorridasRepository,
             IMotoristaRepository motoristaRepository,
-            IAssinaturaPlanoRepository assinaturaPlanoRepository)
+            IAssinaturaPlanoRepository assinaturaPlanoRepository,
+            ICarteiraRepository carteiraRepository,
+            ITransacaoCarteiraRepository transacaoCarteiraRepository)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
             _pacoteCorridasRepository = pacoteCorridasRepository;
             _motoristaRepository = motoristaRepository;
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
+            _carteiraRepository = carteiraRepository;
+            _transacaoCarteiraRepository = transacaoCarteiraRepository;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
@@ -35,6 +41,11 @@ namespace TransportesApp.Application.Services
             // Se a corrida é por pacote, valida que o pacote existe, é do cliente, é da faixa certa
             // e ainda tem corridas disponíveis — só depois disso ele é efetivamente consumido.
             var pacote = await ValidarPacoteAsync(request, clienteId, rota.Faixa);
+
+            // Se a corrida é avulsa, valida que a carteira do cliente tem saldo suficiente pro valor
+            // da faixa — só depois disso ela é efetivamente debitada (mesma ideia do pacote: nunca
+            // debita antes de a corrida já estar persistida com sucesso).
+            var carteiraAvulsa = await ValidarSaldoAvulsaAsync(request.TipoConsumo, clienteId, rota.Faixa.PrecoAvulso);
 
             // Assinatura ativa do cliente (se tiver) — usada tanto pra validar/consumir o benefício de
             // corrida grátis (TipoConsumo.BeneficioPlano) quanto pra registrar que uma corrida paga foi
@@ -60,6 +71,16 @@ namespace TransportesApp.Application.Services
             {
                 pacote.UsarCorrida();
                 await _pacoteCorridasRepository.AtualizarAsync(pacote);
+            }
+
+            if (carteiraAvulsa is not null)
+            {
+                carteiraAvulsa.Debitar(rota.Faixa.PrecoAvulso);
+                await _carteiraRepository.AtualizarAsync(carteiraAvulsa);
+
+                var transacaoDebito = new TransacaoCarteira(
+                    carteiraAvulsa.Id, TipoTransacaoCarteira.Debito, rota.Faixa.PrecoAvulso, $"Corrida avulsa — faixa {rota.Faixa.Cor}");
+                await _transacaoCarteiraRepository.AdicionarAsync(transacaoDebito);
             }
 
             if (assinatura is not null)
@@ -183,6 +204,24 @@ namespace TransportesApp.Application.Services
             return pacote;
         }
 
+        // Não debita aqui — só valida e devolve a carteira, pra só debitar depois que a corrida já
+        // tiver sido persistida com sucesso (mesma ideia de ValidarPacoteAsync). Cliente sem carteira
+        // ainda (nunca recarregou) cai no mesmo erro de saldo insuficiente, sem precisar de um caso
+        // especial: saldo implícito é zero.
+        private async Task<Carteira?> ValidarSaldoAvulsaAsync(TipoConsumo tipoConsumo, Guid clienteId, decimal valor)
+        {
+            if (tipoConsumo != TipoConsumo.Avulsa)
+                return null;
+
+            var carteira = await _carteiraRepository.ObterPorClienteIdAsync(clienteId);
+
+            if (carteira is null || carteira.Saldo < valor)
+                throw new InvalidOperationException(
+                    "Saldo insuficiente na carteira para essa corrida avulsa. Recarregue sua carteira antes de pedir.");
+
+            return carteira;
+        }
+
         public async Task<CorridaResponse?> ObterPorIdAsync(Guid id)
         {
             var corrida = await _corridaRepository.ObterPorIdAsync(id);
@@ -259,16 +298,22 @@ namespace TransportesApp.Application.Services
             return new FinalizarCorridaResponse(estourouFaixa, MapearParaResponse(corrida));
         }
 
-        public async Task<CorridaResponse?> CancelarAsync(Guid corridaId)
+        // sempreReembolsar vem do controller (ver CorridasController.Cancelar) e indica se quem está
+        // cancelando NÃO é o cliente dono da corrida (motorista atribuído ou Admin) — nesse caso o
+        // cancelamento sempre reverte o que já foi consumido, já que não foi o cliente quem desistiu.
+        public async Task<CorridaResponse?> CancelarAsync(Guid corridaId, bool sempreReembolsar)
         {
             var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
 
             if (corrida is null)
                 return null;
 
-            corrida.Cancelar();
+            var deveReverterConsumo = corrida.Cancelar(sempreReembolsar);
 
             await _corridaRepository.AtualizarAsync(corrida);
+
+            if (deveReverterConsumo)
+                await ReverterConsumoAsync(corrida);
 
             // Se já tinha motorista atribuído (e ele estava em corrida por causa dela), libera de volta.
             if (corrida.MotoristaId is not null)
@@ -283,6 +328,49 @@ namespace TransportesApp.Application.Services
             }
 
             return MapearParaResponse(corrida);
+        }
+
+        // Desfaz o que foi consumido/debitado na criação da corrida (ver CriarAsync) — só chamado quando
+        // Corrida.Cancelar() sinaliza que o cancelamento dá direito a reversão. Cada TipoConsumo sabe
+        // devolver o que é seu; o valor usado pro estorno da carteira é o preço ATUAL da faixa (mesma
+        // lógica de MapearParaResponse.valorReferencia) — como a tabela de preços é fixa em código
+        // (ver FaixaDistancia), na prática é sempre o mesmo valor que foi debitado na criação.
+        private async Task ReverterConsumoAsync(Corrida corrida)
+        {
+            switch (corrida.TipoConsumo)
+            {
+                case TipoConsumo.Pacote when corrida.PacoteCorridasId is not null:
+                    var pacote = await _pacoteCorridasRepository.ObterPorIdAsync(corrida.PacoteCorridasId.Value);
+                    if (pacote is not null)
+                    {
+                        pacote.DevolverCorrida();
+                        await _pacoteCorridasRepository.AtualizarAsync(pacote);
+                    }
+                    break;
+
+                case TipoConsumo.Avulsa:
+                    var carteira = await _carteiraRepository.ObterPorClienteIdAsync(corrida.ClienteId);
+                    if (carteira is not null)
+                    {
+                        var valor = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).PrecoAvulso;
+                        carteira.Estornar(valor);
+                        await _carteiraRepository.AtualizarAsync(carteira);
+
+                        var transacaoEstorno = new TransacaoCarteira(
+                            carteira.Id, TipoTransacaoCarteira.Estorno, valor, $"Estorno — cancelamento de corrida avulsa ({corrida.FaixaContratada})");
+                        await _transacaoCarteiraRepository.AdicionarAsync(transacaoEstorno);
+                    }
+                    break;
+
+                case TipoConsumo.BeneficioPlano:
+                    var assinatura = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(corrida.ClienteId);
+                    if (assinatura is not null)
+                    {
+                        assinatura.DevolverBeneficioGratis(DateTime.UtcNow);
+                        await _assinaturaPlanoRepository.AtualizarAsync(assinatura);
+                    }
+                    break;
+            }
         }
 
         // Sempre geocodifica o endereço em texto via Google Maps — o cliente não informa lat/long.

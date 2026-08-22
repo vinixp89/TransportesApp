@@ -19,6 +19,11 @@ namespace TransportesApp.Infrastructure.Repositories
             return await _context.Carteiras.FirstOrDefaultAsync(c => c.ClienteId == clienteId);
         }
 
+        public async Task<Carteira?> ObterPorIdAsync(Guid id)
+        {
+            return await _context.Carteiras.FirstOrDefaultAsync(c => c.Id == id);
+        }
+
         public async Task AdicionarAsync(Carteira carteira)
         {
             await _context.Carteiras.AddAsync(carteira);

@@ -13,17 +13,26 @@ namespace TransportesApp.Application.Services
     {
         private readonly IPagamentoRepository _pagamentoRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
+        // Acessados direto (não via CarteiraService) pra evitar dependência circular: CarteiraService já
+        // depende de PagamentoService pra iniciar a recarga (ver CarteiraService.IniciarRecargaAsync), então
+        // PagamentoService não pode depender de volta de CarteiraService — só dos repositórios em si.
+        private readonly ICarteiraRepository _carteiraRepository;
+        private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
         private readonly IGatewayPagamento _gateway;
         private readonly IConfiguration _configuration;
 
         public PagamentoService(
             IPagamentoRepository pagamentoRepository,
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
+            ICarteiraRepository carteiraRepository,
+            ITransacaoCarteiraRepository transacaoCarteiraRepository,
             IGatewayPagamento gateway,
             IConfiguration configuration)
         {
             _pagamentoRepository = pagamentoRepository;
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
+            _carteiraRepository = carteiraRepository;
+            _transacaoCarteiraRepository = transacaoCarteiraRepository;
             _gateway = gateway;
             _configuration = configuration;
         }
@@ -43,7 +52,7 @@ namespace TransportesApp.Application.Services
             // o Mercado Pago sempre acrescenta seus próprios parâmetros (status, payment_id,
             // external_reference) na URL de volta, e é isso que a tela usa pra saber o que mostrar.
             var frontendBase = (_configuration["MercadoPago:UrlRetornoFrontend"] ?? "http://localhost:5173").TrimEnd('/');
-            var urlRetorno = $"{frontendBase}/planos/retorno";
+            var urlRetorno = $"{frontendBase}/pagamentos/retorno";
 
             var urlNotificacaoBase = _configuration["MercadoPago:UrlNotificacao"];
             var urlNotificacao = string.IsNullOrWhiteSpace(urlNotificacaoBase)
@@ -102,12 +111,18 @@ namespace TransportesApp.Application.Services
             return new PagamentoStatusResponse(pagamento.Id, pagamento.Status, pagamento.Valor, pagamento.Descricao);
         }
 
-        // Aplica o que cada tipo de referência precisa fazer quando o pagamento muda de status. Hoje só
-        // AssinaturaPlano está implementado — Pacotes/Corridas ainda são liberados na hora da criação,
-        // sem um estado "pendente de pagamento"; quando entrarem nesse fluxo, o efeito colateral deles
-        // (liberar o pacote, confirmar a corrida) entra aqui do mesmo jeito.
+        // Aplica o que cada tipo de referência precisa fazer quando o pagamento muda de status.
+        // AssinaturaPlano e RecargaCarteira já estão implementados — Pacotes/Corridas ainda são
+        // liberados na hora da criação, sem um estado "pendente de pagamento"; quando entrarem nesse
+        // fluxo, o efeito colateral deles (liberar o pacote, confirmar a corrida) entra aqui do mesmo jeito.
         private async Task AplicarEfeitoColateralAsync(Pagamento pagamento)
         {
+            if (pagamento.TipoReferencia == TipoReferenciaPagamento.RecargaCarteira)
+            {
+                await AplicarEfeitoRecargaCarteiraAsync(pagamento);
+                return;
+            }
+
             if (pagamento.TipoReferencia != TipoReferenciaPagamento.AssinaturaPlano)
                 return;
 
@@ -132,6 +147,29 @@ namespace TransportesApp.Application.Services
             // EmProcessamento/Estornado não mexem na assinatura aqui: EmProcessamento ainda pode virar
             // Aprovado ou Recusado depois, e Estornado (reembolso de algo já aprovado) fica fora do
             // escopo desta primeira versão — a assinatura continua ativa até ser cancelada manualmente.
+        }
+
+        // Credita o saldo da carteira só quando o pagamento é aprovado — Recusado/Cancelado nunca
+        // creditaram nada, então não tem o que desfazer. EmProcessamento também não faz nada ainda
+        // (pode virar Aprovado ou Recusado depois). ReferenciaId aqui é o Id da CARTEIRA (não do
+        // cliente) — ver CarteiraService.IniciarRecargaAsync, que passa carteira.Id como referência.
+        private async Task AplicarEfeitoRecargaCarteiraAsync(Pagamento pagamento)
+        {
+            if (pagamento.Status != StatusPagamento.Aprovado)
+                return;
+
+            var carteira = await _carteiraRepository.ObterPorIdAsync(pagamento.ReferenciaId);
+
+            // Não deveria acontecer (a carteira é criada antes de iniciar o pagamento), mas não custa
+            // proteger em vez de derrubar a aplicação numa notificação atrasada/inconsistente.
+            if (carteira is null)
+                return;
+
+            carteira.Recarregar(pagamento.Valor);
+            await _carteiraRepository.AtualizarAsync(carteira);
+
+            var transacao = new TransacaoCarteira(carteira.Id, TipoTransacaoCarteira.Recarga, pagamento.Valor, "Recarga via Mercado Pago");
+            await _transacaoCarteiraRepository.AdicionarAsync(transacao);
         }
     }
 }

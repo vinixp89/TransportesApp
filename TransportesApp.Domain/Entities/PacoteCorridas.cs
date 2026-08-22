@@ -47,5 +47,16 @@ namespace TransportesApp.Domain.Entities
 
             QuantidadeUsada++;
         }
+
+        // Reverte um UsarCorrida() — chamado quando uma corrida por pacote é cancelada com direito a
+        // reembolso (ver Corrida.Cancelar e CorridaService.ReverterConsumoAsync). Nunca deixa
+        // QuantidadeUsada ficar negativa.
+        public void DevolverCorrida()
+        {
+            if (QuantidadeUsada <= 0)
+                throw new InvalidOperationException("Este pacote não tem corridas usadas para devolver.");
+
+            QuantidadeUsada--;
+        }
     }
 }

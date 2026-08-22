@@ -178,7 +178,13 @@ namespace TransportesApp.Api.Controllers
 
             try
             {
-                var corrida = await _corridaService.CancelarAsync(id);
+                // Reembolso automático (devolve o que já foi debitado/consumido) quando quem cancela NÃO
+                // é o cliente dono da corrida — motorista atribuído ou Admin cancelando não é culpa do
+                // cliente, então ele não deve perder o que já pagou. Cliente cancelando só é reembolsado
+                // se a corrida ainda não tinha motorista atribuído (ver Corrida.Cancelar).
+                var sempreReembolsar = !await ClienteDonoDaCorridaAsync(corridaAtual);
+
+                var corrida = await _corridaService.CancelarAsync(id, sempreReembolsar);
 
                 if (corrida is null)
                     return NotFound();
@@ -211,6 +217,21 @@ namespace TransportesApp.Api.Controllers
                 return true;
 
             return false;
+        }
+
+        // true só quando o usuário logado É o cliente dono da corrida (Admin e o motorista atribuído
+        // devolvem false) — usado só pra decidir a regra de reembolso no cancelamento (ver Cancelar acima).
+        private async Task<bool> ClienteDonoDaCorridaAsync(CorridaResponse corrida)
+        {
+            if (User.IsInRole("Admin"))
+                return false;
+
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            return cliente is not null && cliente.Id == corrida.ClienteId;
         }
 
         // Só o motorista atribuído àquela corrida especificamente (não qualquer motorista).

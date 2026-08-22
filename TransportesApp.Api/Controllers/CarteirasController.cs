@@ -32,6 +32,9 @@ namespace TransportesApp.Api.Controllers
             return Ok(carteira);
         }
 
+        // Não credita mais na hora — inicia um pagamento no Mercado Pago e devolve a URL de checkout
+        // pro front redirecionar (mesmo padrão de PlanosController.Assinar). O saldo só é creditado
+        // depois que o pagamento for confirmado (ver PagamentoService.AplicarEfeitoColateralAsync).
         [HttpPost("recarregar")]
         public async Task<IActionResult> Recarregar([FromBody] RecarregarCarteiraRequest request)
         {
@@ -42,8 +45,8 @@ namespace TransportesApp.Api.Controllers
 
             try
             {
-                var carteira = await _carteiraService.RecarregarAsync(cliente.Id, request.Valor);
-                return Ok(carteira);
+                var resultado = await _carteiraService.IniciarRecargaAsync(cliente.Id, request.Valor, cliente.Email);
+                return Ok(resultado);
             }
             catch (ArgumentException ex)
             {

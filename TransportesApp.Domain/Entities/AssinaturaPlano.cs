@@ -101,6 +101,16 @@ namespace TransportesApp.Domain.Entities
             BeneficioUsadoNoMes = true;
         }
 
+        // Reverte um UsarBeneficioGratis() — chamado quando uma corrida por BeneficioPlano é cancelada
+        // com direito a reembolso (ver Corrida.Cancelar e CorridaService.ReverterConsumoAsync). Só desfaz
+        // se ainda estiver dentro do mesmo mês em que o benefício foi usado — se o mês já virou, o flag
+        // já é tratado como resetado (ver EhMesAtual) e não há nada a desfazer.
+        public void DevolverBeneficioGratis(DateTime dataReferenciaUtc)
+        {
+            if (EhMesAtual(dataReferenciaUtc))
+                BeneficioUsadoNoMes = false;
+        }
+
         private void GarantirMesAtual(DateTime dataReferenciaUtc)
         {
             var anoMesAtual = dataReferenciaUtc.Year * 100 + dataReferenciaUtc.Month;

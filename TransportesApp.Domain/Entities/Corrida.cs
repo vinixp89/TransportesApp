@@ -89,14 +89,30 @@ namespace TransportesApp.Domain.Entities
 
         public void RegistrarExcedente(decimal valor)  => ValorExcedente =valor;
 
-        public void Cancelar()
+        // Regra de negócio de cancelamento: corrida em andamento não pode mais ser cancelada por aqui
+        // (só finalizada normalmente) — só dá pra cancelar enquanto ainda está Solicitada ou Confirmada.
+        //
+        // sempreReembolsar é passado por quem chama (ver CorridaService.CancelarAsync) e indica se quem
+        // está cancelando NÃO é o cliente (motorista ou Admin) — nesse caso o cancelamento sempre dá
+        // direito a reembolso/devolução do que já foi consumido, porque não foi o cliente quem desistiu.
+        //
+        // Devolve true quando o cancelamento dá direito a reverter o que já foi debitado/consumido
+        // (saldo da carteira, corrida do pacote, benefício do plano) — reversão só acontece enquanto a
+        // corrida ainda estava Solicitada (sem motorista atribuído) OU quando sempreReembolsar é true.
+        // Cliente cancelando uma corrida já Confirmada (com motorista atribuído) não tem direito a
+        // devolução: é a "taxa" de cancelamento tardio, que aqui é simplesmente não devolver o que já
+        // foi gasto, em vez de cobrar algo novo.
+        public bool Cancelar(bool sempreReembolsar)
         {
 
-            if (Status is StatusCorrida.Finalizada or StatusCorrida.Cancelada)
-                throw new InvalidOperationException("Corrida finalizada ou cancelada não pode ser cancelada");
+            if (Status is StatusCorrida.Finalizada or StatusCorrida.Cancelada or StatusCorrida.EmAndamento)
+                throw new InvalidOperationException("Corrida em andamento, finalizada ou já cancelada não pode ser cancelada");
+
+            var deveReverterConsumo = Status == StatusCorrida.Solicitada || sempreReembolsar;
+
             Status = StatusCorrida.Cancelada;
-        
-        
+
+            return deveReverterConsumo;
         }
 
 
