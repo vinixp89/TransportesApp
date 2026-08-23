@@ -236,6 +236,14 @@ namespace TransportesApp.Application.Services
             return corridas.Select(c => MapearParaResponse(c));
         }
 
+        // Extrato de corridas do próprio motorista (mais recentes primeiro, ver CorridaRepository).
+        public async Task<IEnumerable<CorridaResponse>> ListarPorMotoristaAsync(Guid motoristaId)
+        {
+            var corridas = await _corridaRepository.ListarPorMotoristaIdAsync(motoristaId);
+
+            return corridas.Select(c => MapearParaResponse(c));
+        }
+
         public async Task<CorridaResponse?> AtribuirMotoristaAsync(Guid corridaId, Guid motoristaId)
         {
             var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);

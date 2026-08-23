@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Interfaces;
@@ -32,6 +33,14 @@ namespace TransportesApp.Infrastructure.Repositories
         public async Task<IEnumerable<Corrida>> ListarAsync()
         {
             return await _context.Corridas.ToListAsync();
+        }
+
+        public async Task<IEnumerable<Corrida>> ListarPorMotoristaIdAsync(Guid motoristaId)
+        {
+            return await _context.Corridas
+                .Where(c => c.MotoristaId == motoristaId)
+                .OrderByDescending(c => c.DataSolicitacao)
+                .ToListAsync();
         }
 
         public async Task AdicionarAsync(Corrida corrida)

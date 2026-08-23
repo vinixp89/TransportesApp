@@ -70,6 +70,23 @@ namespace TransportesApp.Api.Controllers
             return Ok(corridas);
         }
 
+        // Extrato de corridas do motorista logado (mais recentes primeiro).
+        [Authorize(Roles = "Motorista")]
+        [HttpGet("minhas")]
+        public async Task<IActionResult> ListarMinhas()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver o extrato de corridas." });
+
+            var corridas = await _corridaService.ListarPorMotoristaAsync(motorista.Id);
+            return Ok(corridas);
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> ObterPorId(Guid id)
         {
