@@ -167,8 +167,14 @@ namespace TransportesApp.Api
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-
-            app.UseHttpsRedirection();
+            else
+            {
+                // Redirecionar pra HTTPS só faz sentido fora do Development — em dev a API roda
+                // em HTTP puro de propósito (testes locais via rede Wi-Fi/túnel com o app mobile),
+                // e o React Native não segue redirecionamento 307 corretamente em requisições
+                // POST, o que quebrava o login vindo do app.
+                app.UseHttpsRedirection();
+            }
 
             app.UseCors("FrontendDev");
 
