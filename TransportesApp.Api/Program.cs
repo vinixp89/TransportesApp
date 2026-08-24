@@ -163,7 +163,6 @@ namespace TransportesApp.Api
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
-                app.MapOpenApi();
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
