@@ -43,6 +43,14 @@ namespace TransportesApp.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<Corrida>> ListarPorClienteIdAsync(Guid clienteId)
+        {
+            return await _context.Corridas
+                .Where(c => c.ClienteId == clienteId)
+                .OrderByDescending(c => c.DataSolicitacao)
+                .ToListAsync();
+        }
+
         public async Task AdicionarAsync(Corrida corrida)
         {
             await _context.Corridas.AddAsync(corrida);

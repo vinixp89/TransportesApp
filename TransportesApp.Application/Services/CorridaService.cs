@@ -244,6 +244,27 @@ namespace TransportesApp.Application.Services
             return corridas.Select(c => MapearParaResponse(c));
         }
 
+        // Histórico de corridas do próprio cliente (mais recentes primeiro).
+        public async Task<IEnumerable<CorridaResponse>> ListarPorClienteAsync(Guid clienteId)
+        {
+            var corridas = await _corridaRepository.ListarPorClienteIdAsync(clienteId);
+
+            return corridas.Select(c => MapearParaResponse(c));
+        }
+
+        // Corrida em andamento do próprio cliente (qualquer status que não seja final) — pro app
+        // mostrar um banner "corrida em andamento" e levar direto de volta pro acompanhamento, em
+        // vez do cliente precisar lembrar que pediu uma corrida. No máximo uma por vez.
+        public async Task<CorridaResponse?> ObterAtualDoClienteAsync(Guid clienteId)
+        {
+            var corridas = await _corridaRepository.ListarPorClienteIdAsync(clienteId);
+
+            var atual = corridas.FirstOrDefault(c =>
+                c.Status is StatusCorrida.Solicitada or StatusCorrida.Confirmada or StatusCorrida.EmAndamento);
+
+            return atual is null ? null : MapearParaResponse(atual);
+        }
+
         // Corridas aguardando motorista (Solicitada, sem ninguém atribuído ainda) — pro motorista
         // ver o que tem disponível pra aceitar. Mais recentes primeiro.
         public async Task<IEnumerable<CorridaResponse>> ListarPendentesAsync()
@@ -291,19 +312,31 @@ namespace TransportesApp.Application.Services
             return MapearParaResponse(corrida);
         }
 
-        public async Task<CorridaResponse?> IniciarViagemAsync(Guid corridaId)
+        public async Task<CorridaResponse?> IniciarViagemAsync(Guid corridaId, string codigoConfirmacao)
         {
             var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
 
             if (corrida is null)
                 return null;
 
-            corrida.IniciarViagem();
+            corrida.IniciarViagem(codigoConfirmacao);
 
             await _corridaRepository.AtualizarAsync(corrida);
 
             return MapearParaResponse(corrida);
         }
+
+        // Só o cliente dono da corrida vê esse código (ver CorridasController) — ele fala de viva
+        // voz pro motorista, que precisa digitá-lo certo pra poder iniciar a viagem.
+        public async Task<string?> ObterCodigoConfirmacaoAsync(Guid corridaId)
+        {
+            var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
+            return corrida?.CodigoConfirmacao;
+        }
+
+        // Raio de tolerância pra considerar o motorista "no destino" — GPS de celular tem margem
+        // de erro, então exigir posição exata travaria a finalização sem necessidade.
+        private const double DistanciaMaximaParaFinalizarKm = 0.5;
 
         public async Task<FinalizarCorridaResponse?> FinalizarAsync(Guid corridaId, FinalizarCorridaRequest request)
         {
@@ -311,6 +344,24 @@ namespace TransportesApp.Application.Services
 
             if (corrida is null)
                 return null;
+
+            // Só dá pra finalizar perto do destino — evita finalizar (e cobrar) uma corrida que na
+            // prática ainda não chegou. Exige que o motorista tenha localização atual conhecida.
+            if (corrida.MotoristaId is not null)
+            {
+                var motoristaNaFinalizacao = await _motoristaRepository.ObterPorIdAsync(corrida.MotoristaId.Value);
+
+                if (motoristaNaFinalizacao?.LatitudeAtual is null || motoristaNaFinalizacao.LongitudeAtual is null)
+                    throw new InvalidOperationException("Não foi possível confirmar sua localização atual. Ative o GPS e tente de novo.");
+
+                var distanciaAteDestino = CalcularDistanciaKm(
+                    motoristaNaFinalizacao.LatitudeAtual.Value, motoristaNaFinalizacao.LongitudeAtual.Value,
+                    corrida.Destino.Latitude, corrida.Destino.Longitude);
+
+                if (distanciaAteDestino > DistanciaMaximaParaFinalizarKm)
+                    throw new InvalidOperationException(
+                        $"Você ainda está a {distanciaAteDestino:F1} km do destino — só dá pra finalizar a corrida perto de lá.");
+            }
 
             var estourouFaixa = corrida.FinalizarCorrida(request.DistanciaReal);
 
@@ -465,5 +516,25 @@ namespace TransportesApp.Application.Services
                 avisosEndereco
             );
         }
+
+        // Fórmula de Haversine — mesma usada em MotoristaService pra "motoristas próximos", aqui pra
+        // conferir se o motorista já chegou perto do destino antes de deixar finalizar a corrida.
+        private static double CalcularDistanciaKm(double lat1, double lon1, double lat2, double lon2)
+        {
+            const double raioTerraKm = 6371;
+
+            var dLat = ParaRadianos(lat2 - lat1);
+            var dLon = ParaRadianos(lon2 - lon1);
+
+            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                    Math.Cos(ParaRadianos(lat1)) * Math.Cos(ParaRadianos(lat2)) *
+                    Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+
+            var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+            return raioTerraKm * c;
+        }
+
+        private static double ParaRadianos(double graus) => graus * Math.PI / 180;
     }
 }

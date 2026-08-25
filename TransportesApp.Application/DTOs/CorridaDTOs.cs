@@ -66,6 +66,8 @@ namespace TransportesApp.Application.DTOs
         string ModeloVeiculo
     );
 
+    public record IniciarViagemRequest(string Codigo);
+
     public record FinalizarCorridaRequest(double DistanciaReal);
 
     public record FinalizarCorridaResponse(bool EstouroFaixa,CorridaResponse Corrida);

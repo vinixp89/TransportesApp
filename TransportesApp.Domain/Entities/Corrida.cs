@@ -23,6 +23,11 @@ namespace TransportesApp.Domain.Entities
         public DateTime DataSolicitacao { get; private set; }
         public DateTime DataFinalizacao { get; private set; }
 
+        // Gerado quando o motorista aceita a corrida — o cliente vê esse código no app e fala ele
+        // de viva voz pro motorista, que precisa digitar certo pra poder iniciar a viagem. Evita
+        // que o motorista errado (ou ninguém) inicie a corrida de outra pessoa.
+        public string? CodigoConfirmacao { get; private set; }
+
         protected Corrida() { }
 
 
@@ -56,21 +61,30 @@ namespace TransportesApp.Domain.Entities
             if (Status != StatusCorrida.Solicitada)
                 throw new InvalidOperationException("Só é possível atribuir  motorista a uma corrida solicitada");
             MotoristaId = motoristaId;
+            CodigoConfirmacao = GerarCodigoConfirmacao();
             Status = StatusCorrida.Confirmada;
-        
-        
+
+
         }
 
-        public void IniciarViagem() 
+        // O motorista só consegue iniciar a viagem informando o código de 4 dígitos que o cliente
+        // vê no app dele — confirma que é o motorista certo, na frente do cliente certo.
+        public void IniciarViagem(string codigoInformado)
         {
 
             if (Status != StatusCorrida.Confirmada)
                 throw new InvalidOperationException("Corrida precisa estar confirmada para iniiciar a viagem");
+
+            if (string.IsNullOrWhiteSpace(codigoInformado) || codigoInformado != CodigoConfirmacao)
+                throw new InvalidOperationException("Código de confirmação incorreto. Peça pro cliente informar o código de 4 dígitos.");
+
             Status = StatusCorrida.EmAndamento;
-        
-        
-        
+
+
+
         }
+
+        private static string GerarCodigoConfirmacao() => Random.Shared.Next(0, 10000).ToString("D4");
         public bool FinalizarCorrida(double distanciaReal)
         {
             if (Status != StatusCorrida.EmAndamento)

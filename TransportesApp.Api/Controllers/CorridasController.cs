@@ -71,21 +71,31 @@ namespace TransportesApp.Api.Controllers
             return Ok(corridas);
         }
 
-        // Extrato de corridas do motorista logado (mais recentes primeiro).
-        [Authorize(Roles = "Motorista")]
+        // Extrato de corridas do usuário logado — motorista vê as que dirigiu, cliente vê as que
+        // pediu (mais recentes primeiro).
+        [Authorize(Roles = "Cliente,Motorista")]
         [HttpGet("minhas")]
         public async Task<IActionResult> ListarMinhas()
         {
             var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? User.FindFirstValue("sub")!);
 
-            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+            if (User.IsInRole("Motorista"))
+            {
+                var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
 
-            if (motorista is null)
-                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver o extrato de corridas." });
+                if (motorista is null)
+                    return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver o extrato de corridas." });
 
-            var corridas = await _corridaService.ListarPorMotoristaAsync(motorista.Id);
-            return Ok(corridas);
+                return Ok(await _corridaService.ListarPorMotoristaAsync(motorista.Id));
+            }
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de ver o extrato de corridas." });
+
+            return Ok(await _corridaService.ListarPorClienteAsync(cliente.Id));
         }
 
         [HttpGet("{id:guid}")]
@@ -111,22 +121,50 @@ namespace TransportesApp.Api.Controllers
             return Ok(corridas);
         }
 
-        // Corrida que o motorista logado aceitou e ainda não finalizou (null se não tiver nenhuma
-        // — está livre pra aceitar outra em /pendentes).
-        [Authorize(Roles = "Motorista")]
+        // Corrida em andamento do usuário logado (null se não tiver nenhuma): motorista vê a que
+        // aceitou e ainda não finalizou (livre pra aceitar outra em /pendentes se for null);
+        // cliente vê a que pediu e ainda não terminou (pro banner "corrida em andamento" no app).
+        [Authorize(Roles = "Cliente,Motorista")]
         [HttpGet("atual")]
-        public async Task<IActionResult> ObterAtualDoMotorista()
+        public async Task<IActionResult> ObterAtual()
         {
             var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? User.FindFirstValue("sub")!);
 
-            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+            if (User.IsInRole("Motorista"))
+            {
+                var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
 
-            if (motorista is null)
-                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver suas corridas." });
+                if (motorista is null)
+                    return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver suas corridas." });
 
-            var corrida = await _corridaService.ObterAtualDoMotoristaAsync(motorista.Id);
-            return Ok(corrida);
+                return Ok(await _corridaService.ObterAtualDoMotoristaAsync(motorista.Id));
+            }
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de ver suas corridas." });
+
+            return Ok(await _corridaService.ObterAtualDoClienteAsync(cliente.Id));
+        }
+
+        // Código de confirmação de 4 dígitos — só o cliente dono da corrida vê (é ele quem fala o
+        // código de viva voz pro motorista, ver Corrida.IniciarViagem no domínio).
+        [Authorize(Roles = "Cliente")]
+        [HttpGet("{id:guid}/codigo-confirmacao")]
+        public async Task<IActionResult> ObterCodigoConfirmacao(Guid id)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await ClienteDonoDaCorridaAsync(corrida))
+                return Forbid();
+
+            var codigo = await _corridaService.ObterCodigoConfirmacaoAsync(id);
+            return Ok(new { codigo });
         }
 
         // Localização atual do motorista a caminho — pro cliente acompanhar no mapa depois que a
@@ -187,7 +225,7 @@ namespace TransportesApp.Api.Controllers
 
         [Authorize(Roles = "Motorista")]
         [HttpPatch("{id}/iniciar")]
-        public async Task<IActionResult> IniciarViagem(Guid id)
+        public async Task<IActionResult> IniciarViagem(Guid id, [FromBody] IniciarViagemRequest request)
         {
             var corridaAtual = await _corridaService.ObterPorIdAsync(id);
 
@@ -199,7 +237,7 @@ namespace TransportesApp.Api.Controllers
 
             try
             {
-                var corrida = await _corridaService.IniciarViagemAsync(id);
+                var corrida = await _corridaService.IniciarViagemAsync(id, request.Codigo);
 
                 if (corrida is null)
                     return NotFound();
