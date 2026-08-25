@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TransportesApp.Application.DTOs;
 using TransportesApp.Application.Services;
+using TransportesApp.Domain.Enums;
 
 namespace TransportesApp.Api.Controllers
 {
@@ -99,6 +100,62 @@ namespace TransportesApp.Api.Controllers
                 return Forbid();
 
             return Ok(corrida);
+        }
+
+        // Corridas aguardando motorista, pra ele escolher qual aceitar (ver AtribuirMotorista abaixo).
+        [Authorize(Roles = "Motorista")]
+        [HttpGet("pendentes")]
+        public async Task<IActionResult> ListarPendentes()
+        {
+            var corridas = await _corridaService.ListarPendentesAsync();
+            return Ok(corridas);
+        }
+
+        // Corrida que o motorista logado aceitou e ainda não finalizou (null se não tiver nenhuma
+        // — está livre pra aceitar outra em /pendentes).
+        [Authorize(Roles = "Motorista")]
+        [HttpGet("atual")]
+        public async Task<IActionResult> ObterAtualDoMotorista()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver suas corridas." });
+
+            var corrida = await _corridaService.ObterAtualDoMotoristaAsync(motorista.Id);
+            return Ok(corrida);
+        }
+
+        // Localização atual do motorista a caminho — pro cliente acompanhar no mapa depois que a
+        // corrida é confirmada. Só faz sentido enquanto tem motorista atribuído (Confirmada ou
+        // EmAndamento); antes disso ou depois de finalizada/cancelada não há o que mostrar.
+        [HttpGet("{id:guid}/localizacao-motorista")]
+        public async Task<IActionResult> ObterLocalizacaoMotorista(Guid id)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await UsuarioParticipaDaCorridaAsync(corrida))
+                return Forbid();
+
+            if (corrida.MotoristaId is null || corrida.Status is not (StatusCorrida.Confirmada or StatusCorrida.EmAndamento))
+                return BadRequest(new { mensagem = "Essa corrida não tem um motorista a caminho no momento." });
+
+            var motorista = await _motoristaService.ObterPorIdAsync(corrida.MotoristaId.Value);
+
+            if (motorista is null)
+                return NotFound();
+
+            return Ok(new LocalizacaoMotoristaResponse(
+                motorista.LatitudeAtual,
+                motorista.LongitudeAtual,
+                motorista.PlacaVeiculo,
+                motorista.ModeloVeiculo));
         }
 
         [Authorize(Roles = "Motorista")]

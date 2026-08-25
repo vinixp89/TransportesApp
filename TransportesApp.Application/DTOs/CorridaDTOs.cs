@@ -57,6 +57,15 @@ namespace TransportesApp.Application.DTOs
             IReadOnlyList<string>? AvisosEndereco = null
         );
 
+    // Localização atual do motorista atribuído à corrida — consultada pelo cliente pra acompanhar
+    // o deslocamento no mapa depois que a corrida é confirmada (ver CorridasController).
+    public record LocalizacaoMotoristaResponse(
+        double? Latitude,
+        double? Longitude,
+        string PlacaVeiculo,
+        string ModeloVeiculo
+    );
+
     public record FinalizarCorridaRequest(double DistanciaReal);
 
     public record FinalizarCorridaResponse(bool EstouroFaixa,CorridaResponse Corrida);

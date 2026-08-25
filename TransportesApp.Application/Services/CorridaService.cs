@@ -244,6 +244,30 @@ namespace TransportesApp.Application.Services
             return corridas.Select(c => MapearParaResponse(c));
         }
 
+        // Corridas aguardando motorista (Solicitada, sem ninguém atribuído ainda) — pro motorista
+        // ver o que tem disponível pra aceitar. Mais recentes primeiro.
+        public async Task<IEnumerable<CorridaResponse>> ListarPendentesAsync()
+        {
+            var corridas = await _corridaRepository.ListarAsync();
+
+            return corridas
+                .Where(c => c.Status == StatusCorrida.Solicitada)
+                .OrderByDescending(c => c.DataSolicitacao)
+                .Select(c => MapearParaResponse(c));
+        }
+
+        // Corrida que o motorista aceitou e ainda não finalizou (Confirmada ou EmAndamento) — no
+        // máximo uma por vez, já que aceitar uma corrida deixa o motorista EmCorrida (ver
+        // AtribuirMotoristaAsync), o que bloqueia aceitar outra até finalizar/cancelar essa.
+        public async Task<CorridaResponse?> ObterAtualDoMotoristaAsync(Guid motoristaId)
+        {
+            var corridas = await _corridaRepository.ListarPorMotoristaIdAsync(motoristaId);
+
+            var atual = corridas.FirstOrDefault(c => c.Status is StatusCorrida.Confirmada or StatusCorrida.EmAndamento);
+
+            return atual is null ? null : MapearParaResponse(atual);
+        }
+
         public async Task<CorridaResponse?> AtribuirMotoristaAsync(Guid corridaId, Guid motoristaId)
         {
             var corrida = await _corridaRepository.ObterPorIdAsync(corridaId);
