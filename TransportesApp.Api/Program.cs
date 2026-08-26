@@ -1,5 +1,6 @@
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -59,17 +60,34 @@ namespace TransportesApp.Api
             if (!string.IsNullOrWhiteSpace(mercadoPagoAccessToken))
                 MercadoPagoConfig.AccessToken = mercadoPagoAccessToken;
 
-            // Libera o front-end (React rodando em localhost:5173, porta padrão do Vite) a chamar a API.
-            // Sem isso o navegador bloqueia as requisições por CORS mesmo a API respondendo normalmente.
+            // Libera o front-end a chamar a API — sem isso o navegador bloqueia as requisições por
+            // CORS mesmo a API respondendo normalmente. Em produção a origem real (domínio do
+            // front-end) vem de "Cors:AllowedOrigins" (configurável via variável de ambiente
+            // Cors__AllowedOrigins__0 no docker-compose); localhost:5173 (Vite) sempre liberado
+            // pra não quebrar o desenvolvimento local.
+            var origensLiberadas = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+            var origensCors = origensLiberadas.Concat(["http://localhost:5173", "https://localhost:5173"]).Distinct().ToArray();
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("FrontendDev", policy =>
                 {
-                    policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
+                    policy.WithOrigins(origensCors)
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials();
                 });
+            });
+
+            // Em produção a API fica atrás do Caddy (reverse proxy que faz TLS), então toda
+            // requisição chega no container por HTTP puro — sem isso, o ASP.NET Core não sabe que
+            // o pedido original era HTTPS e o UseHttpsRedirection() abaixo entraria num loop de
+            // redirecionamento.
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
             });
 
             builder.Services.AddEndpointsApiExplorer();
@@ -125,8 +143,16 @@ namespace TransportesApp.Api
 
             var app = builder.Build();
 
+            app.UseForwardedHeaders();
+
             using (var scope = app.Services.CreateScope())
             {
+                // Aplica migrations pendentes automaticamente no start — em produção (container
+                // Docker) não tem Visual Studio/Package Manager Console pra rodar Update-Database
+                // manualmente. Idempotente: migrations já aplicadas são ignoradas.
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                await dbContext.Database.MigrateAsync();
+
                 var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
                 string[] roles = { "Cliente", "Motorista", "Admin" };
 
@@ -181,6 +207,8 @@ namespace TransportesApp.Api
 
             app.UseAuthorization();
 
+
+            app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
             app.MapControllers();
 
