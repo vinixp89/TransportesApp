@@ -49,6 +49,9 @@ namespace TransportesApp.Application.DTOs
             // Valor de tabela da faixa contratada (o mesmo preço fixo, independente de ter sido paga
             // avulsa ou com pacote) — calculado a partir de FaixaDistancia, não é gravado no banco.
             decimal ValorReferencia,
+            // Quanto o motorista recebe dessa corrida (ValorReferencia * percentual da plataforma,
+            // ver CorridaService.PercentualMotorista) — calculado na hora, não gravado no banco.
+            decimal ValorMotorista,
             TipoConsumo TipoConsumo,
             StatusCorrida Status,
             DateTime DataSolicitacao,

@@ -494,11 +494,17 @@ namespace TransportesApp.Application.Services
             );
         }
 
+        // Percentual da corrida que fica com o motorista — o resto é a comissão da plataforma.
+        // Fixo por enquanto (mesmo valor pra todo mundo); se um dia precisar variar por motorista
+        // ou por período, é aqui que essa regra passa a olhar pra algum dado em vez de uma constante.
+        public const decimal PercentualMotorista = 0.85m;
+
         private static CorridaResponse MapearParaResponse(Corrida corrida, IReadOnlyList<string>? avisosEndereco = null)
         {
             // ValorReferencia não é gravado na corrida — é derivado da faixa contratada na hora de responder,
             // pra sempre refletir a tabela de preços atual em vez de um valor que poderia ficar desatualizado.
             var valorReferencia = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).PrecoAvulso;
+            var valorMotorista = Math.Round(valorReferencia * PercentualMotorista, 2);
 
             return new CorridaResponse(
                 corrida.Id,
@@ -510,6 +516,7 @@ namespace TransportesApp.Application.Services
                 corrida.DistanciaRealKm,
                 corrida.FaixaContratada,
                 valorReferencia,
+                valorMotorista,
                 corrida.TipoConsumo,
                 corrida.Status,
                 corrida.DataSolicitacao,
