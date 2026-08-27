@@ -18,7 +18,8 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 
-ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-ENTRYPOINT ["dotnet", "TransportesApp.Api.dll"]
+# Plataformas tipo Railway injetam a porta a usar via variável de ambiente PORT (muda a cada
+# deploy); no docker-compose/EC2 essa variável não existe, então cai no 8080 fixo de sempre.
+ENTRYPOINT ["sh", "-c", "exec dotnet TransportesApp.Api.dll --urls http://+:${PORT:-8080}"]
