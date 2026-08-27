@@ -35,8 +35,11 @@ services:
       Admin__Email: ${ADMIN_EMAIL}
       Admin__Password: ${ADMIN_PASSWORD}
       Cors__AllowedOrigins__0: ${FRONTEND_URL}
-    expose:
-      - "8080"
+    # Publicado direto no IP (porta 8080) enquanto não tem domínio configurado — depois que tiver
+    # um domínio apontando pro servidor, pode trocar isso de volta pra "expose" e usar só o Caddy
+    # (HTTPS) como porta de entrada, já que ele já reverse-proxya pra api:8080 mesmo assim.
+    ports:
+      - "8080:8080"
 
   caddy:
     image: caddy:2-alpine
