@@ -16,6 +16,12 @@ RUN dotnet publish TransportesApp.Api/TransportesApp.Api.csproj -c Release -o /a
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+
+# A imagem base não vem com libgssapi_krb5 — sem ela, o .NET não consegue abrir certas conexões
+# HTTPS de saída (ex: chamadas pro Google Maps/Mercado Pago), mesmo a API subindo normalmente.
+RUN apt-get update && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish .
 
 EXPOSE 8080
