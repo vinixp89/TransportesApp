@@ -35,11 +35,10 @@ services:
       Admin__Email: ${ADMIN_EMAIL}
       Admin__Password: ${ADMIN_PASSWORD}
       Cors__AllowedOrigins__0: ${FRONTEND_URL}
-    # Publicado direto no IP (porta 8080) enquanto não tem domínio configurado — depois que tiver
-    # um domínio apontando pro servidor, pode trocar isso de volta pra "expose" e usar só o Caddy
-    # (HTTPS) como porta de entrada, já que ele já reverse-proxya pra api:8080 mesmo assim.
-    ports:
-      - "8080:8080"
+    # Só interna à rede do Docker agora que o Caddy (HTTPS) é a porta de entrada pública — o
+    # tráfego chega em api:8080 via reverse_proxy do Caddy, não precisa mais expor direto.
+    expose:
+      - "8080"
 
   caddy:
     image: caddy:2-alpine

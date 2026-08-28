@@ -1,6 +1,3 @@
-# Troque pelo subdomínio real da API (ex: api.vainaboa.com.br) — precisa já estar apontando
-# (registro A) pro IP da instância EC2 antes de subir o Caddy, senão ele não consegue emitir o
-# certificado HTTPS automático (Let's Encrypt).
-api.SEUDOMINIO.com.br {
+api.vainaboamobilidade.com.br {
 	reverse_proxy api:8080
 }
