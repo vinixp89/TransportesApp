@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -22,7 +23,16 @@ namespace TransportesApp.Api.Controllers
         private readonly ClienteService _clienteService;
         private readonly MotoristaService _motoristaService;
         private readonly IEmailService _emailService;
+        private readonly IMemoryCache _cache;
         private readonly ILogger<AuthController> _logger;
+
+        // Código de redefinição de senha (6 dígitos) guardado em memória por 15 min, junto com o
+        // token de verdade do Identity que ele representa — não precisa de tabela nova no banco
+        // pra algo tão efêmero, e o app roda numa instância só (sem load balancer).
+        private static readonly MemoryCacheEntryOptions CodigoRedefinicaoOptions = new()
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15)
+        };
 
         public AuthController(
             UserManager<Usuario> userManager,
@@ -30,6 +40,7 @@ namespace TransportesApp.Api.Controllers
             ClienteService clienteService,
             MotoristaService motoristaService,
             IEmailService emailService,
+            IMemoryCache cache,
             ILogger<AuthController> logger)
         {
             _userManager = userManager;
@@ -37,6 +48,7 @@ namespace TransportesApp.Api.Controllers
             _clienteService = clienteService;
             _motoristaService = motoristaService;
             _emailService = emailService;
+            _cache = cache;
             _logger = logger;
         }
 
@@ -120,6 +132,58 @@ namespace TransportesApp.Api.Controllers
 
             if (!senhaValida)
                 return Unauthorized(new { mensagem = "Email ou senha inválidos" });
+
+            var token = await GerarTokenAsync(usuario);
+
+            return Ok(token);
+        }
+
+        // Sempre responde OK, exista o e-mail ou não — evita que alguém descubra quais e-mails
+        // têm conta só tentando esse endpoint (enumeração de usuários).
+        [HttpPost("esqueci-senha")]
+        public async Task<IActionResult> EsqueciSenha([FromBody] EsqueciSenhaRequest request)
+        {
+            var usuario = await _userManager.FindByEmailAsync(request.Email);
+
+            if (usuario is not null)
+            {
+                var codigo = Random.Shared.Next(0, 1_000_000).ToString("D6");
+                var tokenIdentity = await _userManager.GeneratePasswordResetTokenAsync(usuario);
+
+                _cache.Set($"redefinir-senha:{request.Email.ToLowerInvariant()}", (codigo, tokenIdentity), CodigoRedefinicaoOptions);
+
+                try
+                {
+                    var mensagem = EmailTemplates.RedefinicaoSenha(codigo);
+                    await _emailService.EnviarAsync(usuario.Email!, mensagem.Assunto, mensagem.CorpoHtml);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falha ao enviar e-mail de redefinição de senha para {Email}", usuario.Email);
+                }
+            }
+
+            return Ok(new { mensagem = "Se esse e-mail tiver uma conta, enviamos um código de redefinição pra ele." });
+        }
+
+        [HttpPost("redefinir-senha")]
+        public async Task<IActionResult> RedefinirSenha([FromBody] RedefinirSenhaRequest request)
+        {
+            if (!_cache.TryGetValue($"redefinir-senha:{request.Email.ToLowerInvariant()}", out (string Codigo, string TokenIdentity) pendente)
+                || pendente.Codigo != request.Codigo)
+                return BadRequest(new { mensagem = "Código inválido ou expirado. Peça um novo." });
+
+            var usuario = await _userManager.FindByEmailAsync(request.Email);
+
+            if (usuario is null)
+                return BadRequest(new { mensagem = "Código inválido ou expirado. Peça um novo." });
+
+            var resultado = await _userManager.ResetPasswordAsync(usuario, pendente.TokenIdentity, request.NovaSenha);
+
+            if (!resultado.Succeeded)
+                return BadRequest(resultado.Errors.Select(e => e.Description));
+
+            _cache.Remove($"redefinir-senha:{request.Email.ToLowerInvariant()}");
 
             var token = await GerarTokenAsync(usuario);
 

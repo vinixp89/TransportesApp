@@ -6,5 +6,9 @@ namespace TransportesApp.Application.DTOs
 
     public record LoginRequest(string Email, string Senha);
 
+    public record EsqueciSenhaRequest(string Email);
+
+    public record RedefinirSenhaRequest(string Email, string Codigo, string NovaSenha);
+
     public record AuthResponse(string Token, DateTime ExpiraEm, string Email, Guid UsuarioId);
 }

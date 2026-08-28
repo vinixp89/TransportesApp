@@ -20,6 +20,22 @@ namespace TransportesApp.Application.Email
             return new EmailMensagem(assunto, corpoHtml);
         }
 
+        public static EmailMensagem RedefinicaoSenha(string codigo)
+        {
+            var assunto = "Código para redefinir sua senha — Vai na Boa";
+
+            var corpoHtml = $@"
+                <div style=""font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #222;"">
+                    <h2>Redefinição de senha</h2>
+                    <p>Use o código abaixo no app pra criar uma nova senha. Ele vale por 15 minutos.</p>
+                    <p style=""font-size: 32px; font-weight: 700; letter-spacing: 8px; text-align: center; margin: 24px 0;"">{codigo}</p>
+                    <p>Se você não pediu essa redefinição, pode ignorar este e-mail — sua senha continua a mesma.</p>
+                    <p>Equipe Vai na Boa</p>
+                </div>";
+
+            return new EmailMensagem(assunto, corpoHtml);
+        }
+
         public static EmailMensagem BoasVindasMotorista()
         {
             var assunto = "Bem-vindo(a) à frota Vai na Boa Motorista!";
