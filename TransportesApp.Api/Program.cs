@@ -1,9 +1,13 @@
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using MercadoPago.Config;
 using TransportesApp.Application.Services;
 using TransportesApp.Domain.Entities;
@@ -29,6 +33,9 @@ namespace TransportesApp.Api
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 
+            // Connection string do Postgres fica vazia de propósito em appsettings.json (mesmo padrão do
+            // MercadoPago/GoogleMaps/LocationIq abaixo) — configure a sua localmente via User Secrets:
+            // dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=transportesapp_db;Username=postgres;Password=SUA_SENHA"
             builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
@@ -72,6 +79,19 @@ namespace TransportesApp.Api
                 });
             });
 
+            // Limita tentativas de login por IP pra dificultar força bruta/credential stuffing contra
+            // /api/Auth/login — 5 tentativas por minuto, sem fila (excedente recebe 429 direto).
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddFixedWindowLimiter("login", limiterOptions =>
+                {
+                    limiterOptions.PermitLimit = 5;
+                    limiterOptions.Window = TimeSpan.FromMinutes(1);
+                    limiterOptions.QueueLimit = 0;
+                });
+            });
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {
@@ -96,6 +116,13 @@ namespace TransportesApp.Api
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequireUppercase = false;
                 options.User.RequireUniqueEmail = true;
+
+                // Bloqueia a conta após tentativas de senha erradas seguidas — junto com o rate limiter
+                // do login, isso é o que efetivamente impede força bruta (o CheckPasswordSignInAsync do
+                // AuthController é quem incrementa/zera esse contador).
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                options.Lockout.AllowedForNewUsers = true;
             })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
@@ -120,6 +147,29 @@ namespace TransportesApp.Api
                     ValidIssuer = jwtIssuer,
                     ValidAudience = jwtAudience,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!))
+                };
+
+                // Revogação de token: o SecurityStamp do usuário (claim "security_stamp", ver
+                // AuthController.GerarTokenAsync) é comparado com o valor atual no banco a cada request.
+                // O Identity troca o SecurityStamp sozinho ao trocar senha — então um token vazado ou de
+                // uma sessão antiga vira inválido imediatamente, em vez de continuar valendo até expirar.
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<Usuario>>();
+
+                        var userId = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub);
+                        var tokenStamp = context.Principal?.FindFirstValue("security_stamp");
+
+                        var usuario = userId is not null ? await userManager.FindByIdAsync(userId) : null;
+
+                        if (usuario is null || tokenStamp is null ||
+                            !string.Equals(await userManager.GetSecurityStampAsync(usuario), tokenStamp, StringComparison.Ordinal))
+                        {
+                            context.Fail("Sessão inválida ou expirada — faça login novamente.");
+                        }
+                    }
                 };
             });
 
@@ -171,6 +221,8 @@ namespace TransportesApp.Api
             app.UseHttpsRedirection();
 
             app.UseCors("FrontendDev");
+
+            app.UseRateLimiter();
 
             app.UseAuthentication();
 

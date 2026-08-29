@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -18,6 +19,7 @@ namespace TransportesApp.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly UserManager<Usuario> _userManager;
+        private readonly SignInManager<Usuario> _signInManager;
         private readonly IConfiguration _configuration;
         private readonly ClienteService _clienteService;
         private readonly MotoristaService _motoristaService;
@@ -26,6 +28,7 @@ namespace TransportesApp.Api.Controllers
 
         public AuthController(
             UserManager<Usuario> userManager,
+            SignInManager<Usuario> signInManager,
             IConfiguration configuration,
             ClienteService clienteService,
             MotoristaService motoristaService,
@@ -33,6 +36,7 @@ namespace TransportesApp.Api.Controllers
             ILogger<AuthController> logger)
         {
             _userManager = userManager;
+            _signInManager = signInManager;
             _configuration = configuration;
             _clienteService = clienteService;
             _motoristaService = motoristaService;
@@ -108,6 +112,7 @@ namespace TransportesApp.Api.Controllers
             return Ok(token);
         }
 
+        [EnableRateLimiting("login")]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
@@ -116,9 +121,15 @@ namespace TransportesApp.Api.Controllers
             if (usuario is null)
                 return Unauthorized(new { mensagem = "Email ou senha inválidos" });
 
-            var senhaValida = await _userManager.CheckPasswordAsync(usuario, request.Senha);
+            // CheckPasswordSignInAsync (em vez de CheckPasswordAsync) é quem aciona o lockout do
+            // Identity: incrementa AccessFailedCount a cada erro e bloqueia a conta depois de
+            // Lockout.MaxFailedAccessAttempts (ver Program.cs) — essencial contra força bruta.
+            var resultado = await _signInManager.CheckPasswordSignInAsync(usuario, request.Senha, lockoutOnFailure: true);
 
-            if (!senhaValida)
+            if (resultado.IsLockedOut)
+                return StatusCode(StatusCodes.Status423Locked, new { mensagem = "Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em alguns minutos." });
+
+            if (!resultado.Succeeded)
                 return Unauthorized(new { mensagem = "Email ou senha inválidos" });
 
             var token = await GerarTokenAsync(usuario);
@@ -132,11 +143,16 @@ namespace TransportesApp.Api.Controllers
             var jwtIssuer = _configuration["Jwt:Issuer"];
             var jwtAudience = _configuration["Jwt:Audience"];
 
+            var securityStamp = await _userManager.GetSecurityStampAsync(usuario);
+
             var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, usuario.Email!),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                // Validado a cada request em Program.cs (JwtBearerEvents.OnTokenValidated) — é o que
+                // permite revogar um token antes da expiração (ex: ao trocar senha) mesmo sem refresh token.
+                new Claim("security_stamp", securityStamp)
             };
 
             var roles = await _userManager.GetRolesAsync(usuario);
@@ -145,7 +161,12 @@ namespace TransportesApp.Api.Controllers
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var expiraEm = DateTime.UtcNow.AddDays(7);
+            // Reduzido de 7 dias pra 24h: com a checagem de SecurityStamp acima, a revogação (troca de
+            // senha, por exemplo) já é imediata — essa janela menor é só defesa em profundidade extra
+            // pro caso do token vazar sem a senha ser trocada. Se o app precisar manter sessão mais longa
+            // sem pedir login todo dia, o próximo passo é implementar refresh token nos 3 clientes (web,
+            // app cliente, app motorista).
+            var expiraEm = DateTime.UtcNow.AddHours(24);
 
             var token = new JwtSecurityToken(
                 issuer: jwtIssuer,

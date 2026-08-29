@@ -77,6 +77,17 @@ namespace TransportesApp.Api.Controllers
             if (pacote is null)
                 return NotFound();
 
+            if (!User.IsInRole("Admin"))
+            {
+                var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? User.FindFirstValue("sub")!);
+
+                var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+                if (cliente is null || pacote.ClienteId != cliente.Id)
+                    return Forbid();
+            }
+
             return Ok(pacote);
         }
     }

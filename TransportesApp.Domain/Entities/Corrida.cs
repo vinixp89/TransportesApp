@@ -76,6 +76,16 @@ namespace TransportesApp.Domain.Entities
             if (Status != StatusCorrida.EmAndamento)
                 throw new InvalidOperationException("Corrida precisa está em andamento para ser finalizada");
 
+            if (distanciaReal <= 0)
+                throw new InvalidOperationException("Distância real da corrida deve ser maior que zero.");
+
+            // Tolerância generosa (5x a estimativa, com piso de +20km) pra cobrir desvio de rota real
+            // sem aceitar um valor absurdo/manipulado vindo do app do motorista — isso é o que decide se a
+            // corrida "estourou" a faixa contratada e, futuramente, quanto cobrar de excedente.
+            var limiteMaximoKm = Math.Max(DistanciaEstimadaKm * 5, DistanciaEstimadaKm + 20);
+            if (distanciaReal > limiteMaximoKm)
+                throw new InvalidOperationException($"Distância real ({distanciaReal:F1} km) muito acima do esperado para esta corrida.");
+
             DistanciaRealKm = distanciaReal;
             var faixaReal = FaixaDistancia.ClassificarPorDistancia(distanciaReal);
             var estouroFaixa = faixaReal.Cor != FaixaContratada;
