@@ -127,7 +127,15 @@ namespace TransportesApp.Api.Controllers
         [HttpGet("pendentes")]
         public async Task<IActionResult> ListarPendentes()
         {
-            var corridas = await _corridaService.ListarPendentesAsync();
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver corridas pendentes." });
+
+            var corridas = await _corridaService.ListarPendentesAsync(motorista.Id);
             return Ok(corridas);
         }
 

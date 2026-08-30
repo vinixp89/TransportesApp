@@ -28,6 +28,7 @@ namespace TransportesApp.Infrastructure.Data
         public DbSet<Carteira> Carteiras => Set<Carteira>();
         public DbSet<TransacaoCarteira> TransacoesCarteira => Set<TransacaoCarteira>();
         public DbSet<AssinaturaPlano> AssinaturasPlano => Set<AssinaturaPlano>();
+        public DbSet<AssinaturaMotoristaBlack> AssinaturasMotoristaBlack => Set<AssinaturaMotoristaBlack>();
         public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
 
 

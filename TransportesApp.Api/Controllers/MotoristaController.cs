@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TransportesApp.Application.DTOs;
@@ -12,10 +13,12 @@ namespace TransportesApp.Api.Controllers
     public class MotoristasController : ControllerBase
     {
         private readonly MotoristaService _motoristaService;
+        private readonly AssinaturaMotoristaBlackService _assinaturaBlackService;
 
-        public MotoristasController(MotoristaService motoristaService)
+        public MotoristasController(MotoristaService motoristaService, AssinaturaMotoristaBlackService assinaturaBlackService)
         {
             _motoristaService = motoristaService;
+            _assinaturaBlackService = assinaturaBlackService;
         }
 
         [Authorize(Roles = "Motorista")]
@@ -119,6 +122,66 @@ namespace TransportesApp.Api.Controllers
                 return BadRequest(new { mensagem = "Cadastre-se como motorista antes de atualizar a localização." });
 
             return Ok(motorista);
+        }
+
+        [Authorize(Roles = "Motorista")]
+        [HttpGet("black/assinatura")]
+        public async Task<IActionResult> MinhaAssinaturaBlack()
+        {
+            var motorista = await ObterMotoristaLogadoAsync();
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de consultar sua assinatura Black." });
+
+            var assinatura = await _assinaturaBlackService.ObterAtualAsync(motorista.Id);
+            return Ok(assinatura);
+        }
+
+        [Authorize(Roles = "Motorista")]
+        [HttpPost("black/assinar")]
+        public async Task<IActionResult> AssinarBlack([FromBody] AssinarBlackRequest request)
+        {
+            var motorista = await ObterMotoristaLogadoAsync();
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de assinar a categoria Black." });
+
+            var email = User.FindFirstValue(JwtRegisteredClaimNames.Email)!;
+
+            try
+            {
+                var resultado = await _assinaturaBlackService.AssinarAsync(motorista.Id, request.AnoVeiculo, email);
+                return Ok(resultado);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        [Authorize(Roles = "Motorista")]
+        [HttpPost("black/cancelar")]
+        public async Task<IActionResult> CancelarBlack()
+        {
+            var motorista = await ObterMotoristaLogadoAsync();
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de cancelar a categoria Black." });
+
+            var cancelou = await _assinaturaBlackService.CancelarAsync(motorista.Id);
+
+            if (!cancelou)
+                return BadRequest(new { mensagem = "Você não tem uma assinatura Black ativa ou pendente pra cancelar." });
+
+            return NoContent();
+        }
+
+        private async Task<MotoristaResponse?> ObterMotoristaLogadoAsync()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            return await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
         }
     }
 }

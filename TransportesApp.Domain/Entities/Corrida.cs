@@ -15,6 +15,7 @@ namespace TransportesApp.Domain.Entities
 
         public double? DistanciaRealKm { get; private set; }
         public CorFaixa FaixaContratada { get; private set; }
+        public CategoriaCorrida Categoria { get; private set; }
         public TipoConsumo TipoConsumo { get; private set; }
 
         public Guid? PacoteCorridasId { get; private set; }
@@ -32,7 +33,7 @@ namespace TransportesApp.Domain.Entities
 
 
         public Corrida(Guid clienteId,Endereco origem,Endereco destino,double distanciaEstimadaKm, FaixaDistancia faixa, TipoConsumo tipoConsumo,
-             Guid? pacoteCorridasId)
+             Guid? pacoteCorridasId, CategoriaCorrida categoria = CategoriaCorrida.Normal)
         {
 
             if (tipoConsumo == TipoConsumo.Pacote && pacoteCorridasId is null)
@@ -44,6 +45,7 @@ namespace TransportesApp.Domain.Entities
             Destino = destino;
             DistanciaEstimadaKm = distanciaEstimadaKm;
             FaixaContratada = faixa.Cor;
+            Categoria = categoria;
             TipoConsumo = tipoConsumo;
             // Em corrida avulsa, ignora qualquer pacoteCorridasId que venha no request (ex: o Guid de
             // exemplo que o Swagger preenche sozinho) — só grava o Id do pacote quando o consumo é por Pacote.

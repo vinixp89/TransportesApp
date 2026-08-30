@@ -16,6 +16,7 @@ namespace TransportesApp.Application.Services
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
         private readonly ICarteiraRepository _carteiraRepository;
         private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
+        private readonly AssinaturaMotoristaBlackService _assinaturaMotoristaBlackService;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
@@ -25,7 +26,8 @@ namespace TransportesApp.Application.Services
             IClienteRepository clienteRepository,
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
             ICarteiraRepository carteiraRepository,
-            ITransacaoCarteiraRepository transacaoCarteiraRepository)
+            ITransacaoCarteiraRepository transacaoCarteiraRepository,
+            AssinaturaMotoristaBlackService assinaturaMotoristaBlackService)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
@@ -35,11 +37,18 @@ namespace TransportesApp.Application.Services
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
+            _assinaturaMotoristaBlackService = assinaturaMotoristaBlackService;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
         {
+            // Categoria Black só existe como corrida avulsa por enquanto — pacotes (preço fixado na
+            // compra) e o benefício de corrida grátis do plano continuam exclusivos da categoria Normal.
+            if (request.Categoria == CategoriaCorrida.Black && request.TipoConsumo != TipoConsumo.Avulsa)
+                throw new InvalidOperationException("A categoria Black só está disponível para corridas avulsas por enquanto (sem pacote ou benefício de plano).");
+
             var rota = await CalcularRotaAsync(request.Origem, request.Destino);
+            var preco = rota.Faixa.ObterPreco(request.Categoria);
 
             // Se a corrida é por pacote, valida que o pacote existe, é do cliente, é da faixa certa
             // e ainda tem corridas disponíveis — só depois disso ele é efetivamente consumido.
@@ -48,7 +57,7 @@ namespace TransportesApp.Application.Services
             // Se a corrida é avulsa, valida que a carteira do cliente tem saldo suficiente pro valor
             // da faixa — só depois disso ela é efetivamente debitada (mesma ideia do pacote: nunca
             // debita antes de a corrida já estar persistida com sucesso).
-            var carteiraAvulsa = await ValidarSaldoAvulsaAsync(request.TipoConsumo, clienteId, rota.Faixa.PrecoAvulso);
+            var carteiraAvulsa = await ValidarSaldoAvulsaAsync(request.TipoConsumo, clienteId, preco);
 
             // Assinatura ativa do cliente (se tiver) — usada tanto pra validar/consumir o benefício de
             // corrida grátis (TipoConsumo.BeneficioPlano) quanto pra registrar que uma corrida paga foi
@@ -65,7 +74,8 @@ namespace TransportesApp.Application.Services
                 distanciaEstimadaKm: rota.DistanciaKm,
                 faixa: rota.Faixa,
                 tipoConsumo: request.TipoConsumo,
-                pacoteCorridasId: request.PacoteCorridasId
+                pacoteCorridasId: request.PacoteCorridasId,
+                categoria: request.Categoria
             );
 
             await _corridaRepository.AdicionarAsync(corrida);
@@ -78,11 +88,11 @@ namespace TransportesApp.Application.Services
 
             if (carteiraAvulsa is not null)
             {
-                carteiraAvulsa.Debitar(rota.Faixa.PrecoAvulso);
+                carteiraAvulsa.Debitar(preco);
                 await _carteiraRepository.AtualizarAsync(carteiraAvulsa);
 
                 var transacaoDebito = new TransacaoCarteira(
-                    carteiraAvulsa.Id, TipoTransacaoCarteira.Debito, rota.Faixa.PrecoAvulso, $"Corrida avulsa — faixa {rota.Faixa.Cor}");
+                    carteiraAvulsa.Id, TipoTransacaoCarteira.Debito, preco, $"Corrida avulsa — faixa {rota.Faixa.Cor} ({request.Categoria})");
                 await _transacaoCarteiraRepository.AdicionarAsync(transacaoDebito);
             }
 
@@ -142,7 +152,8 @@ namespace TransportesApp.Application.Services
                 rota.DistanciaKm,
                 rota.DuracaoMinutos,
                 rota.Faixa.Cor,
-                rota.Faixa.PrecoAvulso,
+                request.Categoria,
+                rota.Faixa.ObterPreco(request.Categoria),
                 rota.Avisos.Count > 0 ? rota.Avisos : null
             );
         }
@@ -270,6 +281,7 @@ namespace TransportesApp.Application.Services
                     response.DistanciaEstimadaKm,
                     response.DistanciaRealKm,
                     response.FaixaContratada,
+                    response.Categoria,
                     response.ValorReferencia,
                     response.ValorMotorista,
                     response.TipoConsumo,
@@ -310,12 +322,16 @@ namespace TransportesApp.Application.Services
 
         // Corridas aguardando motorista (Solicitada, sem ninguém atribuído ainda) — pro motorista
         // ver o que tem disponível pra aceitar. Mais recentes primeiro.
-        public async Task<IEnumerable<CorridaResponse>> ListarPendentesAsync()
+        // motoristaId decide se corridas Black entram na lista — motorista sem assinatura Black ativa
+        // e veículo elegível nem vê essas corridas (ver AssinaturaMotoristaBlackService.EstaElegivelAsync).
+        public async Task<IEnumerable<CorridaResponse>> ListarPendentesAsync(Guid motoristaId)
         {
             var corridas = await _corridaRepository.ListarAsync();
+            var elegivelParaBlack = await _assinaturaMotoristaBlackService.EstaElegivelAsync(motoristaId);
 
             return corridas
                 .Where(c => c.Status == StatusCorrida.Solicitada)
+                .Where(c => c.Categoria != CategoriaCorrida.Black || elegivelParaBlack)
                 .OrderByDescending(c => c.DataSolicitacao)
                 .Select(c => MapearParaResponse(c));
         }
@@ -343,6 +359,9 @@ namespace TransportesApp.Application.Services
 
             if (motorista is null)
                 throw new InvalidOperationException("Motorista não encontrado.");
+
+            if (corrida.Categoria == CategoriaCorrida.Black && !await _assinaturaMotoristaBlackService.EstaElegivelAsync(motoristaId))
+                throw new InvalidOperationException("Essa corrida é da categoria Black — só motoristas com assinatura Black ativa e veículo elegível (até 3 anos) podem aceitar.");
 
             // Já valida internamente que o motorista está Disponivel antes de mudar pra EmCorrida.
             motorista.IniciarCorrida();
@@ -478,7 +497,7 @@ namespace TransportesApp.Application.Services
                     var carteira = await _carteiraRepository.ObterPorClienteIdAsync(corrida.ClienteId);
                     if (carteira is not null)
                     {
-                        var valor = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).PrecoAvulso;
+                        var valor = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria);
                         carteira.Estornar(valor);
                         await _carteiraRepository.AtualizarAsync(carteira);
 
@@ -544,9 +563,10 @@ namespace TransportesApp.Application.Services
 
         private static CorridaResponse MapearParaResponse(Corrida corrida, IReadOnlyList<string>? avisosEndereco = null)
         {
-            // ValorReferencia não é gravado na corrida — é derivado da faixa contratada na hora de responder,
-            // pra sempre refletir a tabela de preços atual em vez de um valor que poderia ficar desatualizado.
-            var valorReferencia = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).PrecoAvulso;
+            // ValorReferencia não é gravado na corrida — é derivado da faixa contratada (e da categoria)
+            // na hora de responder, pra sempre refletir a tabela de preços atual em vez de um valor que
+            // poderia ficar desatualizado.
+            var valorReferencia = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria);
             var valorMotorista = Math.Round(valorReferencia * PercentualMotorista, 2);
 
             return new CorridaResponse(
@@ -558,6 +578,7 @@ namespace TransportesApp.Application.Services
                 corrida.DistanciaEstimadaKm,
                 corrida.DistanciaRealKm,
                 corrida.FaixaContratada,
+                corrida.Categoria,
                 valorReferencia,
                 valorMotorista,
                 corrida.TipoConsumo,

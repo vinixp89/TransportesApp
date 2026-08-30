@@ -13,6 +13,7 @@ namespace TransportesApp.Application.Services
     {
         private readonly IPagamentoRepository _pagamentoRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
+        private readonly IAssinaturaMotoristaBlackRepository _assinaturaMotoristaBlackRepository;
         // Acessados direto (não via CarteiraService) pra evitar dependência circular: CarteiraService já
         // depende de PagamentoService pra iniciar a recarga (ver CarteiraService.IniciarRecargaAsync), então
         // PagamentoService não pode depender de volta de CarteiraService — só dos repositórios em si.
@@ -24,6 +25,7 @@ namespace TransportesApp.Application.Services
         public PagamentoService(
             IPagamentoRepository pagamentoRepository,
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
+            IAssinaturaMotoristaBlackRepository assinaturaMotoristaBlackRepository,
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository,
             IGatewayPagamento gateway,
@@ -31,11 +33,16 @@ namespace TransportesApp.Application.Services
         {
             _pagamentoRepository = pagamentoRepository;
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
+            _assinaturaMotoristaBlackRepository = assinaturaMotoristaBlackRepository;
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
             _gateway = gateway;
             _configuration = configuration;
         }
+
+        // clienteId aqui é "quem paga" de forma genérica — quando tipoReferencia é
+        // AssinaturaMotoristaBlack, quem chama passa o MotoristaId nesse mesmo parâmetro (Pagamento
+        // nasceu pensado só em Cliente, mas o campo guarda qualquer Guid de quem está pagando).
 
         public async Task<PagamentoIniciadoResultado> IniciarPagamentoAsync(
             Guid clienteId,
@@ -123,6 +130,12 @@ namespace TransportesApp.Application.Services
                 return;
             }
 
+            if (pagamento.TipoReferencia == TipoReferenciaPagamento.AssinaturaMotoristaBlack)
+            {
+                await AplicarEfeitoAssinaturaMotoristaBlackAsync(pagamento);
+                return;
+            }
+
             if (pagamento.TipoReferencia != TipoReferenciaPagamento.AssinaturaPlano)
                 return;
 
@@ -147,6 +160,27 @@ namespace TransportesApp.Application.Services
             // EmProcessamento/Estornado não mexem na assinatura aqui: EmProcessamento ainda pode virar
             // Aprovado ou Recusado depois, e Estornado (reembolso de algo já aprovado) fica fora do
             // escopo desta primeira versão — a assinatura continua ativa até ser cancelada manualmente.
+        }
+
+        // Mesma lógica do branch AssinaturaPlano acima, só que pra assinatura Black do motorista —
+        // ver AssinaturaMotoristaBlackService.AssinarAsync, que é quem cria o Pagamento com esse tipo.
+        private async Task AplicarEfeitoAssinaturaMotoristaBlackAsync(Pagamento pagamento)
+        {
+            var assinatura = await _assinaturaMotoristaBlackRepository.ObterPorIdAsync(pagamento.ReferenciaId);
+
+            if (assinatura is null || assinatura.Status != StatusAssinatura.PendentePagamento)
+                return;
+
+            if (pagamento.Status == StatusPagamento.Aprovado)
+            {
+                assinatura.Ativar();
+                await _assinaturaMotoristaBlackRepository.AtualizarAsync(assinatura);
+            }
+            else if (pagamento.Status is StatusPagamento.Recusado or StatusPagamento.Cancelado)
+            {
+                assinatura.MarcarPagamentoRecusado();
+                await _assinaturaMotoristaBlackRepository.AtualizarAsync(assinatura);
+            }
         }
 
         // Credita o saldo da carteira só quando o pagamento é aprovado — Recusado/Cancelado nunca

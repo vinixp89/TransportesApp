@@ -18,6 +18,11 @@ namespace TransportesApp.Domain.Entities
         public double? LongitudeAtual { get; private set; }
         public double AvaliacaoMedia { get; private set; }
 
+        // Ano de fabricação do veículo — só é preenchido quando o motorista assina a categoria Black
+        // (ver AssinaturaMotoristaBlackService.AssinarAsync), que exige veículo com até 3 anos.
+        // Null pra quem nunca assinou Black (não é coletado no cadastro comum).
+        public int? AnoVeiculo { get; private set; }
+
         public DateTime DataCadastro { get; private set; }
 
         protected Motorista() { }
@@ -75,7 +80,15 @@ namespace TransportesApp.Domain.Entities
         
         
         }
-        public void FinalizarCorrida() => Status = StatusMotorista.Disponivel;      
+        public void FinalizarCorrida() => Status = StatusMotorista.Disponivel;
+
+        // Chamado ao assinar a categoria Black — grava o ano informado pelo motorista pra validar a
+        // elegibilidade (ver VeiculoElegivelParaBlack). Não há verificação de foto/documento ainda,
+        // é autodeclarado.
+        public void DefinirAnoVeiculo(int anoVeiculo) => AnoVeiculo = anoVeiculo;
+
+        // Categoria Black exige veículo com até 3 anos de fabricação (contando a partir do ano atual).
+        public bool VeiculoElegivelParaBlack() => AnoVeiculo is not null && DateTime.UtcNow.Year - AnoVeiculo.Value <= 3;
 
 
 

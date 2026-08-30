@@ -16,12 +16,16 @@ namespace TransportesApp.Application.DTOs
 
     // A distância não vem mais do cliente — o backend calcula via Google Maps a partir de Origem/Destino,
     // pra evitar que alguém manipule a requisição e informe uma distância falsa pra pagar menos.
+    // Categoria vem por último com default Normal — apps já em produção que ainda não mandam esse
+    // campo continuam funcionando sem quebrar (System.Text.Json usa o default do construtor quando a
+    // propriedade não vem no JSON).
     public record CriarCorridasRequest
         (
             EnderecoRequest Origem,
             EnderecoRequest Destino,
             TipoConsumo TipoConsumo,
-            Guid? PacoteCorridasId
+            Guid? PacoteCorridasId,
+            CategoriaCorrida Categoria = CategoriaCorrida.Normal
         );
 
     public record EnderecoResponse
@@ -46,6 +50,7 @@ namespace TransportesApp.Application.DTOs
             double DistanciaEstimadaKm,
             double? DistanciaRealKm,
             CorFaixa FaixaContratada,
+            CategoriaCorrida Categoria,
             // Valor de tabela da faixa contratada (o mesmo preço fixo, independente de ter sido paga
             // avulsa ou com pacote) — calculado a partir de FaixaDistancia, não é gravado no banco.
             decimal ValorReferencia,
@@ -75,6 +80,7 @@ namespace TransportesApp.Application.DTOs
             double DistanciaEstimadaKm,
             double? DistanciaRealKm,
             CorFaixa FaixaContratada,
+            CategoriaCorrida Categoria,
             decimal ValorReferencia,
             decimal ValorMotorista,
             TipoConsumo TipoConsumo,
@@ -99,7 +105,7 @@ namespace TransportesApp.Application.DTOs
 
     // Calcula rota, faixa e valor SEM criar a corrida — usado pra mostrar uma tela de confirmação
     // ("essa corrida vai custar X, faixa Y — confirma?") antes de efetivamente solicitar.
-    public record EstimarCorridaRequest(EnderecoRequest Origem, EnderecoRequest Destino);
+    public record EstimarCorridaRequest(EnderecoRequest Origem, EnderecoRequest Destino, CategoriaCorrida Categoria = CategoriaCorrida.Normal);
 
     public record EstimarCorridaResponse
         (
@@ -108,6 +114,7 @@ namespace TransportesApp.Application.DTOs
             double DistanciaEstimadaKm,
             double? DuracaoEstimadaMinutos,
             CorFaixa Faixa,
+            CategoriaCorrida Categoria,
             decimal ValorReferencia,
             IReadOnlyList<string>? AvisosEndereco
         );
