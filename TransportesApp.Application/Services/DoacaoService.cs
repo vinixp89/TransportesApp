@@ -41,6 +41,11 @@ namespace TransportesApp.Application.Services
             return new BuscarClienteResponse(cliente.Id, cliente.Nome, cliente.Email);
         }
 
+        // Duas origens possíveis pro valor doado (ver DoarCorridaRequest.PacoteCorridasId):
+        // - Carteira (padrão, PacoteCorridasId nulo): debita o preço avulso da faixa do saldo em reais.
+        // - Um pacote que o doador já tem (PacoteCorridasId informado): consome 1 corrida desse pacote,
+        //   sem mexer na carteira — ele já pagou por essa corrida quando comprou o pacote.
+        // Em ambos os casos, o resultado final é o mesmo: um pacote de 1 corrida novo pra quem recebe.
         public async Task<DoarCorridaResponse> DoarAsync(Guid doadorId, DoarCorridaRequest request)
         {
             var destinatario = await _clienteRepository.ObterPorEmailAsync(request.EmailDestinatario)
@@ -50,24 +55,55 @@ namespace TransportesApp.Application.Services
                 throw new InvalidOperationException("Você não pode doar uma corrida pra você mesmo.");
 
             var valor = FaixaDistancia.ObterPorCor(request.Faixa).PrecoAvulso;
+            int? quantidadeRestantePacote = null;
+            decimal saldoCarteira;
 
-            var carteira = await _carteiraRepository.ObterPorClienteIdAsync(doadorId);
+            if (request.PacoteCorridasId is Guid pacoteId)
+            {
+                var pacote = await _pacoteCorridasRepository.ObterPorIdAsync(pacoteId)
+                    ?? throw new InvalidOperationException("Pacote de corridas não encontrado.");
 
-            if (carteira is null || carteira.Saldo < valor)
-                throw new InvalidOperationException(
-                    "Saldo insuficiente na carteira para doar essa corrida. Recarregue sua carteira antes de doar.");
+                if (pacote.ClienteId != doadorId)
+                    throw new InvalidOperationException("Este pacote de corridas não pertence a você.");
 
-            carteira.Debitar(valor);
-            await _carteiraRepository.AtualizarAsync(carteira);
+                if (pacote.Faixa != request.Faixa)
+                    throw new InvalidOperationException(
+                        $"Este pacote é da faixa {pacote.Faixa}, mas você escolheu doar uma corrida da faixa {request.Faixa}.");
 
-            var transacao = new TransacaoCarteira(
-                carteira.Id, TipoTransacaoCarteira.Debito, valor, $"Doação de corrida ({request.Faixa}) para {destinatario.Email}");
-            await _transacaoCarteiraRepository.AdicionarAsync(transacao);
+                if (!pacote.TemCorridaDisponivel)
+                    throw new InvalidOperationException("Este pacote não tem corridas disponíveis pra doar.");
+
+                pacote.UsarCorrida();
+                await _pacoteCorridasRepository.AtualizarAsync(pacote);
+                quantidadeRestantePacote = pacote.QuantidadeRestante;
+
+                // Só pra devolver o saldo atual na resposta (não muda nada aqui) — mantém o mesmo
+                // formato de resposta pras duas origens.
+                var carteiraAtual = await _carteiraRepository.ObterPorClienteIdAsync(doadorId);
+                saldoCarteira = carteiraAtual?.Saldo ?? 0;
+            }
+            else
+            {
+                var carteira = await _carteiraRepository.ObterPorClienteIdAsync(doadorId);
+
+                if (carteira is null || carteira.Saldo < valor)
+                    throw new InvalidOperationException(
+                        "Saldo insuficiente na carteira para doar essa corrida. Recarregue sua carteira antes de doar.");
+
+                carteira.Debitar(valor);
+                await _carteiraRepository.AtualizarAsync(carteira);
+
+                var transacao = new TransacaoCarteira(
+                    carteira.Id, TipoTransacaoCarteira.Debito, valor, $"Doação de corrida ({request.Faixa}) para {destinatario.Email}");
+                await _transacaoCarteiraRepository.AdicionarAsync(transacao);
+
+                saldoCarteira = carteira.Saldo;
+            }
 
             var pacoteDoado = PacoteCorridas.CriarDoacao(destinatario.Id, request.Faixa);
             await _pacoteCorridasRepository.AdicionarAsync(pacoteDoado);
 
-            return new DoarCorridaResponse(destinatario.Nome, request.Faixa, valor, carteira.Saldo);
+            return new DoarCorridaResponse(destinatario.Nome, request.Faixa, valor, saldoCarteira, quantidadeRestantePacote);
         }
     }
 }
