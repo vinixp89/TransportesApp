@@ -71,6 +71,16 @@ namespace TransportesApp.Api.Controllers
             return Ok(corridas);
         }
 
+        // Histórico completo pro painel de Admin — todas as corridas de todos os clientes e
+        // motoristas, já com nome/e-mail do cliente e placa/modelo do motorista resolvidos.
+        [Authorize(Roles = "Admin")]
+        [HttpGet("admin")]
+        public async Task<IActionResult> ListarParaAdmin()
+        {
+            var corridas = await _corridaService.ListarParaAdminAsync();
+            return Ok(corridas);
+        }
+
         // Extrato de corridas do usuário logado — motorista vê as que dirigiu, cliente vê as que
         // pediu (mais recentes primeiro).
         [Authorize(Roles = "Cliente,Motorista")]

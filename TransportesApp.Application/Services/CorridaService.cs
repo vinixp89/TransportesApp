@@ -12,6 +12,7 @@ namespace TransportesApp.Application.Services
         private readonly IMapsService _mapsService;
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
         private readonly IMotoristaRepository _motoristaRepository;
+        private readonly IClienteRepository _clienteRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
         private readonly ICarteiraRepository _carteiraRepository;
         private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
@@ -21,6 +22,7 @@ namespace TransportesApp.Application.Services
             IMapsService mapsService,
             IPacoteCorridasRepository pacoteCorridasRepository,
             IMotoristaRepository motoristaRepository,
+            IClienteRepository clienteRepository,
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository)
@@ -29,6 +31,7 @@ namespace TransportesApp.Application.Services
             _mapsService = mapsService;
             _pacoteCorridasRepository = pacoteCorridasRepository;
             _motoristaRepository = motoristaRepository;
+            _clienteRepository = clienteRepository;
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
@@ -234,6 +237,46 @@ namespace TransportesApp.Application.Services
             var corridas = await _corridaRepository.ListarAsync();
 
             return corridas.Select(c => MapearParaResponse(c));
+        }
+
+        // Histórico completo pro painel de Admin — todas as corridas do sistema, mais recentes
+        // primeiro, já com nome/e-mail do cliente e placa/modelo do motorista resolvidos (em vez
+        // dos IDs crus que o CorridaResponse normal expõe).
+        public async Task<IEnumerable<CorridaAdminResponse>> ListarParaAdminAsync()
+        {
+            var corridas = (await _corridaRepository.ListarAsync())
+                .OrderByDescending(c => c.DataSolicitacao)
+                .ToList();
+
+            var clientes = (await _clienteRepository.ListarAsync()).ToDictionary(c => c.Id);
+            var motoristas = (await _motoristaRepository.ListarAsync()).ToDictionary(m => m.Id);
+
+            return corridas.Select(corrida =>
+            {
+                var response = MapearParaResponse(corrida);
+                clientes.TryGetValue(corrida.ClienteId, out var cliente);
+                Motorista? motorista = null;
+                if (corrida.MotoristaId is Guid motoristaId)
+                    motoristas.TryGetValue(motoristaId, out motorista);
+
+                return new CorridaAdminResponse(
+                    response.Id,
+                    cliente?.Nome ?? "(cliente não encontrado)",
+                    cliente?.Email ?? "-",
+                    motorista?.PlacaVeiculo,
+                    motorista?.ModeloVeiculo,
+                    response.Origem,
+                    response.Destino,
+                    response.DistanciaEstimadaKm,
+                    response.DistanciaRealKm,
+                    response.FaixaContratada,
+                    response.ValorReferencia,
+                    response.ValorMotorista,
+                    response.TipoConsumo,
+                    response.Status,
+                    response.DataSolicitacao
+                );
+            });
         }
 
         // Extrato de corridas do próprio motorista (mais recentes primeiro, ver CorridaRepository).

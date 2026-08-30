@@ -60,6 +60,28 @@ namespace TransportesApp.Application.DTOs
             IReadOnlyList<string>? AvisosEndereco = null
         );
 
+    // Versão do CorridaResponse pro painel de Admin: troca os IDs de cliente/motorista (que sozinhos
+    // não dizem nada numa tela) pelos dados que identificam quem é quem — nome/e-mail do cliente e
+    // placa/modelo do motorista (motorista não tem "nome" no domínio, só os dados do veículo).
+    public record CorridaAdminResponse
+        (
+            Guid Id,
+            string ClienteNome,
+            string ClienteEmail,
+            string? MotoristaPlaca,
+            string? MotoristaModelo,
+            EnderecoResponse Origem,
+            EnderecoResponse Destino,
+            double DistanciaEstimadaKm,
+            double? DistanciaRealKm,
+            CorFaixa FaixaContratada,
+            decimal ValorReferencia,
+            decimal ValorMotorista,
+            TipoConsumo TipoConsumo,
+            StatusCorrida Status,
+            DateTime DataSolicitacao
+        );
+
     // Localização atual do motorista atribuído à corrida — consultada pelo cliente pra acompanhar
     // o deslocamento no mapa depois que a corrida é confirmada (ver CorridasController).
     public record LocalizacaoMotoristaResponse(
