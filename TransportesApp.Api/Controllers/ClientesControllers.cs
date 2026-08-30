@@ -12,10 +12,12 @@ namespace TransportesApp.Api.Controllers
     public class ClientesController : ControllerBase
     {
         private readonly ClienteService _clienteService;
+        private readonly DoacaoService _doacaoService;
 
-        public ClientesController(ClienteService clienteService)
+        public ClientesController(ClienteService clienteService, DoacaoService doacaoService)
         {
             _clienteService = clienteService;
+            _doacaoService = doacaoService;
         }
 
         [Authorize(Roles = "Cliente")]
@@ -38,6 +40,31 @@ namespace TransportesApp.Api.Controllers
         {
             var clientes = await _clienteService.ListarAsync();
             return Ok(clientes);
+        }
+
+        // Busca de destinatário pra doar uma corrida (ver CarteirasController.Doar) — só por e-mail
+        // exato, nunca por nome, pra não virar uma lista pesquisável de todos os clientes.
+        [Authorize(Roles = "Cliente")]
+        [HttpGet("buscar")]
+        public async Task<IActionResult> Buscar([FromQuery] string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return BadRequest(new { mensagem = "Informe o e-mail do destinatário." });
+
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var clienteLogado = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (clienteLogado is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de buscar outro cliente." });
+
+            var resultado = await _doacaoService.BuscarPorEmailAsync(email, clienteLogado.Id);
+
+            if (resultado is null)
+                return NotFound(new { mensagem = "Nenhum cliente encontrado com esse e-mail." });
+
+            return Ok(resultado);
         }
 
         [HttpGet("{id:guid}")]

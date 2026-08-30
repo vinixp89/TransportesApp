@@ -39,6 +39,26 @@ namespace TransportesApp.Domain.Entities
             DataCompra = DateTime.UtcNow;
         }
 
+        private PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal precoPago)
+        {
+            Id = Guid.NewGuid();
+            ClienteId = clienteId;
+            Faixa = faixa;
+            QuantidadeTotal = quantidade;
+            QuantidadeUsada = 0;
+            PrecoPago = precoPago;
+            DataCompra = DateTime.UtcNow;
+        }
+
+        // Pacote de 1 corrida criado por uma doação (ver DoacaoService.DoarAsync) — sempre quantidade 1,
+        // por isso não passa pelas regras de TamanhosPacoteDisponiveis (que só valem pra compra na loja).
+        // O preço registrado é o avulso da faixa, já debitado da carteira de quem doou.
+        public static PacoteCorridas CriarDoacao(Guid clienteId, CorFaixa faixa)
+        {
+            var precoAvulso = FaixaDistancia.ObterPorCor(faixa).PrecoAvulso;
+            return new PacoteCorridas(clienteId, faixa, quantidade: 1, precoPago: precoAvulso);
+        }
+
         // Consome uma corrida do pacote. Chamado quando uma corrida por pacote é criada.
         public void UsarCorrida()
         {

@@ -34,6 +34,15 @@ namespace TransportesApp.Infrastructure.Repositories
                 .FirstOrDefaultAsync(c => c.UsuarioId == usuarioId);
         }
 
+        // Usado pra busca de destinatário na doação de corrida (ver DoacaoService) — sempre por
+        // e-mail exato (case-insensitive), nunca por nome, pra não virar uma lista pesquisável de
+        // clientes.
+        public async Task<Cliente?> ObterPorEmailAsync(string email)
+        {
+            return await _context.Clientes
+                .FirstOrDefaultAsync(c => c.Email.ToLower() == email.ToLower());
+        }
+
         public async Task<IEnumerable<Cliente>> ListarAsync()
         {
             return await _context.Clientes.ToListAsync();

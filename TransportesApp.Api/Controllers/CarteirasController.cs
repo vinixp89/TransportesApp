@@ -13,11 +13,13 @@ namespace TransportesApp.Api.Controllers
     {
         private readonly CarteiraService _carteiraService;
         private readonly ClienteService _clienteService;
+        private readonly DoacaoService _doacaoService;
 
-        public CarteirasController(CarteiraService carteiraService, ClienteService clienteService)
+        public CarteirasController(CarteiraService carteiraService, ClienteService clienteService, DoacaoService doacaoService)
         {
             _carteiraService = carteiraService;
             _clienteService = clienteService;
+            _doacaoService = doacaoService;
         }
 
         [HttpGet("minha-carteira")]
@@ -49,6 +51,27 @@ namespace TransportesApp.Api.Controllers
                 return Ok(resultado);
             }
             catch (ArgumentException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        // Doa uma corrida (de uma faixa escolhida) pra outro cliente, achado por e-mail (ver
+        // ClientesController.Buscar) — o valor sai da carteira de quem doa, igual uma corrida avulsa.
+        [HttpPost("doar")]
+        public async Task<IActionResult> Doar([FromBody] DoarCorridaRequest request)
+        {
+            var cliente = await ObterClienteLogadoAsync();
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de doar uma corrida." });
+
+            try
+            {
+                var resultado = await _doacaoService.DoarAsync(cliente.Id, request);
+                return Ok(resultado);
+            }
+            catch (InvalidOperationException ex)
             {
                 return BadRequest(new { mensagem = ex.Message });
             }
