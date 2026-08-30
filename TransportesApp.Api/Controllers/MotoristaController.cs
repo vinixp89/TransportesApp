@@ -13,12 +13,12 @@ namespace TransportesApp.Api.Controllers
     public class MotoristasController : ControllerBase
     {
         private readonly MotoristaService _motoristaService;
-        private readonly AssinaturaMotoristaBlackService _assinaturaBlackService;
+        private readonly AssinaturaMotoristaExecutivoService _assinaturaExecutivoService;
 
-        public MotoristasController(MotoristaService motoristaService, AssinaturaMotoristaBlackService assinaturaBlackService)
+        public MotoristasController(MotoristaService motoristaService, AssinaturaMotoristaExecutivoService assinaturaExecutivoService)
         {
             _motoristaService = motoristaService;
-            _assinaturaBlackService = assinaturaBlackService;
+            _assinaturaExecutivoService = assinaturaExecutivoService;
         }
 
         [Authorize(Roles = "Motorista")]
@@ -125,32 +125,32 @@ namespace TransportesApp.Api.Controllers
         }
 
         [Authorize(Roles = "Motorista")]
-        [HttpGet("black/assinatura")]
-        public async Task<IActionResult> MinhaAssinaturaBlack()
+        [HttpGet("executivo/assinatura")]
+        public async Task<IActionResult> MinhaAssinaturaExecutivo()
         {
             var motorista = await ObterMotoristaLogadoAsync();
 
             if (motorista is null)
-                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de consultar sua assinatura Black." });
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de consultar sua assinatura Executivo." });
 
-            var assinatura = await _assinaturaBlackService.ObterAtualAsync(motorista.Id);
+            var assinatura = await _assinaturaExecutivoService.ObterAtualAsync(motorista.Id);
             return Ok(assinatura);
         }
 
         [Authorize(Roles = "Motorista")]
-        [HttpPost("black/assinar")]
-        public async Task<IActionResult> AssinarBlack([FromBody] AssinarBlackRequest request)
+        [HttpPost("executivo/assinar")]
+        public async Task<IActionResult> AssinarExecutivo([FromBody] AssinarExecutivoRequest request)
         {
             var motorista = await ObterMotoristaLogadoAsync();
 
             if (motorista is null)
-                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de assinar a categoria Black." });
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de assinar a categoria Executivo." });
 
             var email = User.FindFirstValue(JwtRegisteredClaimNames.Email)!;
 
             try
             {
-                var resultado = await _assinaturaBlackService.AssinarAsync(motorista.Id, request.AnoVeiculo, email);
+                var resultado = await _assinaturaExecutivoService.AssinarAsync(motorista.Id, request.AnoVeiculo, email);
                 return Ok(resultado);
             }
             catch (InvalidOperationException ex)
@@ -160,18 +160,18 @@ namespace TransportesApp.Api.Controllers
         }
 
         [Authorize(Roles = "Motorista")]
-        [HttpPost("black/cancelar")]
-        public async Task<IActionResult> CancelarBlack()
+        [HttpPost("executivo/cancelar")]
+        public async Task<IActionResult> CancelarExecutivo()
         {
             var motorista = await ObterMotoristaLogadoAsync();
 
             if (motorista is null)
-                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de cancelar a categoria Black." });
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de cancelar a categoria Executivo." });
 
-            var cancelou = await _assinaturaBlackService.CancelarAsync(motorista.Id);
+            var cancelou = await _assinaturaExecutivoService.CancelarAsync(motorista.Id);
 
             if (!cancelou)
-                return BadRequest(new { mensagem = "Você não tem uma assinatura Black ativa ou pendente pra cancelar." });
+                return BadRequest(new { mensagem = "Você não tem uma assinatura Executivo ativa ou pendente pra cancelar." });
 
             return NoContent();
         }

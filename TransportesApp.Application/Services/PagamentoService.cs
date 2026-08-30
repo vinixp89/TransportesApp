@@ -13,7 +13,7 @@ namespace TransportesApp.Application.Services
     {
         private readonly IPagamentoRepository _pagamentoRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
-        private readonly IAssinaturaMotoristaBlackRepository _assinaturaMotoristaBlackRepository;
+        private readonly IAssinaturaMotoristaExecutivoRepository _assinaturaMotoristaExecutivoRepository;
         // Acessados direto (não via CarteiraService) pra evitar dependência circular: CarteiraService já
         // depende de PagamentoService pra iniciar a recarga (ver CarteiraService.IniciarRecargaAsync), então
         // PagamentoService não pode depender de volta de CarteiraService — só dos repositórios em si.
@@ -25,7 +25,7 @@ namespace TransportesApp.Application.Services
         public PagamentoService(
             IPagamentoRepository pagamentoRepository,
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
-            IAssinaturaMotoristaBlackRepository assinaturaMotoristaBlackRepository,
+            IAssinaturaMotoristaExecutivoRepository assinaturaMotoristaExecutivoRepository,
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository,
             IGatewayPagamento gateway,
@@ -33,7 +33,7 @@ namespace TransportesApp.Application.Services
         {
             _pagamentoRepository = pagamentoRepository;
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
-            _assinaturaMotoristaBlackRepository = assinaturaMotoristaBlackRepository;
+            _assinaturaMotoristaExecutivoRepository = assinaturaMotoristaExecutivoRepository;
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
             _gateway = gateway;
@@ -41,7 +41,7 @@ namespace TransportesApp.Application.Services
         }
 
         // clienteId aqui é "quem paga" de forma genérica — quando tipoReferencia é
-        // AssinaturaMotoristaBlack, quem chama passa o MotoristaId nesse mesmo parâmetro (Pagamento
+        // AssinaturaMotoristaExecutivo, quem chama passa o MotoristaId nesse mesmo parâmetro (Pagamento
         // nasceu pensado só em Cliente, mas o campo guarda qualquer Guid de quem está pagando).
 
         public async Task<PagamentoIniciadoResultado> IniciarPagamentoAsync(
@@ -130,9 +130,9 @@ namespace TransportesApp.Application.Services
                 return;
             }
 
-            if (pagamento.TipoReferencia == TipoReferenciaPagamento.AssinaturaMotoristaBlack)
+            if (pagamento.TipoReferencia == TipoReferenciaPagamento.AssinaturaMotoristaExecutivo)
             {
-                await AplicarEfeitoAssinaturaMotoristaBlackAsync(pagamento);
+                await AplicarEfeitoAssinaturaMotoristaExecutivoAsync(pagamento);
                 return;
             }
 
@@ -162,11 +162,11 @@ namespace TransportesApp.Application.Services
             // escopo desta primeira versão — a assinatura continua ativa até ser cancelada manualmente.
         }
 
-        // Mesma lógica do branch AssinaturaPlano acima, só que pra assinatura Black do motorista —
-        // ver AssinaturaMotoristaBlackService.AssinarAsync, que é quem cria o Pagamento com esse tipo.
-        private async Task AplicarEfeitoAssinaturaMotoristaBlackAsync(Pagamento pagamento)
+        // Mesma lógica do branch AssinaturaPlano acima, só que pra assinatura Executivo do motorista —
+        // ver AssinaturaMotoristaExecutivoService.AssinarAsync, que é quem cria o Pagamento com esse tipo.
+        private async Task AplicarEfeitoAssinaturaMotoristaExecutivoAsync(Pagamento pagamento)
         {
-            var assinatura = await _assinaturaMotoristaBlackRepository.ObterPorIdAsync(pagamento.ReferenciaId);
+            var assinatura = await _assinaturaMotoristaExecutivoRepository.ObterPorIdAsync(pagamento.ReferenciaId);
 
             if (assinatura is null || assinatura.Status != StatusAssinatura.PendentePagamento)
                 return;
@@ -174,12 +174,12 @@ namespace TransportesApp.Application.Services
             if (pagamento.Status == StatusPagamento.Aprovado)
             {
                 assinatura.Ativar();
-                await _assinaturaMotoristaBlackRepository.AtualizarAsync(assinatura);
+                await _assinaturaMotoristaExecutivoRepository.AtualizarAsync(assinatura);
             }
             else if (pagamento.Status is StatusPagamento.Recusado or StatusPagamento.Cancelado)
             {
                 assinatura.MarcarPagamentoRecusado();
-                await _assinaturaMotoristaBlackRepository.AtualizarAsync(assinatura);
+                await _assinaturaMotoristaExecutivoRepository.AtualizarAsync(assinatura);
             }
         }
 

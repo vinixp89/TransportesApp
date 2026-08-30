@@ -5,18 +5,18 @@ using TransportesApp.Domain.Interfaces;
 
 namespace TransportesApp.Application.Services
 {
-    // Assinatura da categoria Black do motorista — mesmo fluxo de pagamento do PlanoService
+    // Assinatura da categoria Executivo do motorista — mesmo fluxo de pagamento do PlanoService
     // (Checkout Pro único via PagamentoService), mas sem catálogo: preço fixo único.
-    public class AssinaturaMotoristaBlackService
+    public class AssinaturaMotoristaExecutivoService
     {
         public const decimal PrecoMensal = 49.90m;
 
-        private readonly IAssinaturaMotoristaBlackRepository _assinaturaRepository;
+        private readonly IAssinaturaMotoristaExecutivoRepository _assinaturaRepository;
         private readonly IMotoristaRepository _motoristaRepository;
         private readonly PagamentoService _pagamentoService;
 
-        public AssinaturaMotoristaBlackService(
-            IAssinaturaMotoristaBlackRepository assinaturaRepository,
+        public AssinaturaMotoristaExecutivoService(
+            IAssinaturaMotoristaExecutivoRepository assinaturaRepository,
             IMotoristaRepository motoristaRepository,
             PagamentoService pagamentoService)
         {
@@ -25,7 +25,7 @@ namespace TransportesApp.Application.Services
             _pagamentoService = pagamentoService;
         }
 
-        public async Task<AssinaturaMotoristaBlackResponse?> ObterAtualAsync(Guid motoristaId)
+        public async Task<AssinaturaMotoristaExecutivoResponse?> ObterAtualAsync(Guid motoristaId)
         {
             var assinatura = await _assinaturaRepository.ObterAtivaPorMotoristaAsync(motoristaId)
                 ?? await _assinaturaRepository.ObterPendentePorMotoristaAsync(motoristaId);
@@ -35,20 +35,20 @@ namespace TransportesApp.Application.Services
 
         // Cria a assinatura como PendentePagamento e devolve a URL de checkout do Mercado Pago — só
         // vira Ativa quando o PagamentoService confirmar o pagamento (webhook, ver PagamentosController).
-        public async Task<AssinarBlackResponse> AssinarAsync(Guid motoristaId, int anoVeiculo, string emailPagador)
+        public async Task<AssinarExecutivoResponse> AssinarAsync(Guid motoristaId, int anoVeiculo, string emailPagador)
         {
             var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId)
                 ?? throw new InvalidOperationException("Motorista não encontrado.");
 
             if (DateTime.UtcNow.Year - anoVeiculo > 3)
-                throw new InvalidOperationException("A categoria Black exige veículo com até 3 anos de fabricação.");
+                throw new InvalidOperationException("A categoria Executivo exige veículo com até 3 anos de fabricação.");
 
             motorista.DefinirAnoVeiculo(anoVeiculo);
             await _motoristaRepository.AtualizarAsync(motorista);
 
             var ativa = await _assinaturaRepository.ObterAtivaPorMotoristaAsync(motoristaId);
             if (ativa is not null)
-                return new AssinarBlackResponse(MapearParaResponse(ativa), null);
+                return new AssinarExecutivoResponse(MapearParaResponse(ativa), null);
 
             // Mesma ideia do PlanoService: uma tentativa anterior não concluída é cancelada antes de
             // criar outra, pra manter só uma preference "viva" por vez.
@@ -59,18 +59,18 @@ namespace TransportesApp.Application.Services
                 await _assinaturaRepository.AtualizarAsync(pendente);
             }
 
-            var nova = new AssinaturaMotoristaBlack(motoristaId);
+            var nova = new AssinaturaMotoristaExecutivo(motoristaId);
             await _assinaturaRepository.AdicionarAsync(nova);
 
             var pagamento = await _pagamentoService.IniciarPagamentoAsync(
                 motoristaId,
-                TipoReferenciaPagamento.AssinaturaMotoristaBlack,
+                TipoReferenciaPagamento.AssinaturaMotoristaExecutivo,
                 nova.Id,
                 PrecoMensal,
-                "Assinatura Black — Vai na Boa",
+                "Assinatura Executivo — Vai na Boa",
                 emailPagador);
 
-            return new AssinarBlackResponse(MapearParaResponse(nova), pagamento.CheckoutUrl);
+            return new AssinarExecutivoResponse(MapearParaResponse(nova), pagamento.CheckoutUrl);
         }
 
         public async Task<bool> CancelarAsync(Guid motoristaId)
@@ -87,19 +87,19 @@ namespace TransportesApp.Application.Services
             return true;
         }
 
-        // Usado pelo CorridaService pra decidir se um motorista pode ver/aceitar corridas Black:
+        // Usado pelo CorridaService pra decidir se um motorista pode ver/aceitar corridas Executivo:
         // precisa ter assinatura ativa E veículo dentro do limite de idade.
         public async Task<bool> EstaElegivelAsync(Guid motoristaId)
         {
             var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
-            if (motorista is null || !motorista.VeiculoElegivelParaBlack())
+            if (motorista is null || !motorista.VeiculoElegivelParaExecutivo())
                 return false;
 
             var ativa = await _assinaturaRepository.ObterAtivaPorMotoristaAsync(motoristaId);
             return ativa is not null;
         }
 
-        private static AssinaturaMotoristaBlackResponse MapearParaResponse(AssinaturaMotoristaBlack assinatura)
+        private static AssinaturaMotoristaExecutivoResponse MapearParaResponse(AssinaturaMotoristaExecutivo assinatura)
             => new(assinatura.Id, PrecoMensal, assinatura.DataInicio, assinatura.Status);
     }
 }

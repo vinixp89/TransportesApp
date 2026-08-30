@@ -16,7 +16,7 @@ namespace TransportesApp.Application.Services
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
         private readonly ICarteiraRepository _carteiraRepository;
         private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
-        private readonly AssinaturaMotoristaBlackService _assinaturaMotoristaBlackService;
+        private readonly AssinaturaMotoristaExecutivoService _assinaturaMotoristaExecutivoService;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
@@ -27,7 +27,7 @@ namespace TransportesApp.Application.Services
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository,
-            AssinaturaMotoristaBlackService assinaturaMotoristaBlackService)
+            AssinaturaMotoristaExecutivoService assinaturaMotoristaExecutivoService)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
@@ -37,15 +37,15 @@ namespace TransportesApp.Application.Services
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
-            _assinaturaMotoristaBlackService = assinaturaMotoristaBlackService;
+            _assinaturaMotoristaExecutivoService = assinaturaMotoristaExecutivoService;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
         {
-            // Categoria Black só existe como corrida avulsa por enquanto — pacotes (preço fixado na
+            // Categoria Executivo só existe como corrida avulsa por enquanto — pacotes (preço fixado na
             // compra) e o benefício de corrida grátis do plano continuam exclusivos da categoria Normal.
-            if (request.Categoria == CategoriaCorrida.Black && request.TipoConsumo != TipoConsumo.Avulsa)
-                throw new InvalidOperationException("A categoria Black só está disponível para corridas avulsas por enquanto (sem pacote ou benefício de plano).");
+            if (request.Categoria == CategoriaCorrida.Executivo && request.TipoConsumo != TipoConsumo.Avulsa)
+                throw new InvalidOperationException("A categoria Executivo só está disponível para corridas avulsas por enquanto (sem pacote ou benefício de plano).");
 
             var rota = await CalcularRotaAsync(request.Origem, request.Destino);
             var preco = rota.Faixa.ObterPreco(request.Categoria);
@@ -322,16 +322,16 @@ namespace TransportesApp.Application.Services
 
         // Corridas aguardando motorista (Solicitada, sem ninguém atribuído ainda) — pro motorista
         // ver o que tem disponível pra aceitar. Mais recentes primeiro.
-        // motoristaId decide se corridas Black entram na lista — motorista sem assinatura Black ativa
-        // e veículo elegível nem vê essas corridas (ver AssinaturaMotoristaBlackService.EstaElegivelAsync).
+        // motoristaId decide se corridas Executivo entram na lista — motorista sem assinatura Executivo ativa
+        // e veículo elegível nem vê essas corridas (ver AssinaturaMotoristaExecutivoService.EstaElegivelAsync).
         public async Task<IEnumerable<CorridaResponse>> ListarPendentesAsync(Guid motoristaId)
         {
             var corridas = await _corridaRepository.ListarAsync();
-            var elegivelParaBlack = await _assinaturaMotoristaBlackService.EstaElegivelAsync(motoristaId);
+            var elegivelParaExecutivo = await _assinaturaMotoristaExecutivoService.EstaElegivelAsync(motoristaId);
 
             return corridas
                 .Where(c => c.Status == StatusCorrida.Solicitada)
-                .Where(c => c.Categoria != CategoriaCorrida.Black || elegivelParaBlack)
+                .Where(c => c.Categoria != CategoriaCorrida.Executivo || elegivelParaExecutivo)
                 .OrderByDescending(c => c.DataSolicitacao)
                 .Select(c => MapearParaResponse(c));
         }
@@ -360,8 +360,8 @@ namespace TransportesApp.Application.Services
             if (motorista is null)
                 throw new InvalidOperationException("Motorista não encontrado.");
 
-            if (corrida.Categoria == CategoriaCorrida.Black && !await _assinaturaMotoristaBlackService.EstaElegivelAsync(motoristaId))
-                throw new InvalidOperationException("Essa corrida é da categoria Black — só motoristas com assinatura Black ativa e veículo elegível (até 3 anos) podem aceitar.");
+            if (corrida.Categoria == CategoriaCorrida.Executivo && !await _assinaturaMotoristaExecutivoService.EstaElegivelAsync(motoristaId))
+                throw new InvalidOperationException("Essa corrida é da categoria Executivo — só motoristas com assinatura Executivo ativa e veículo elegível (até 3 anos) podem aceitar.");
 
             // Já valida internamente que o motorista está Disponivel antes de mudar pra EmCorrida.
             motorista.IniciarCorrida();

@@ -2,16 +2,16 @@ using TransportesApp.Domain.Enums;
 
 namespace TransportesApp.Domain.Entities
 {
-    // Assinatura de um motorista à categoria Black (ver AssinaturaMotoristaBlackService) — preço fixo
-    // (AssinaturaMotoristaBlackService.PrecoMensal), sem catálogo de planos como o AssinaturaPlano do
+    // Assinatura de um motorista à categoria Executivo (ver AssinaturaMotoristaExecutivoService) — preço fixo
+    // (AssinaturaMotoristaExecutivoService.PrecoMensal), sem catálogo de planos como o AssinaturaPlano do
     // cliente. Um motorista tem no máximo UMA assinatura "em aberto" por vez (pendente de pagamento
     // OU ativa) — mesmo índice único e mesmo ciclo de vida do AssinaturaPlano (ver
-    // AssinaturaMotoristaBlackConfiguration).
+    // AssinaturaMotoristaExecutivoConfiguration).
     //
     // Cobrança é um pagamento único (Checkout Pro), não recorrência de verdade — mesma limitação já
     // aceita no AssinaturaPlano hoje: fica Ativa indefinidamente até o motorista cancelar, sem
     // recobrança automática mensal.
-    public class AssinaturaMotoristaBlack
+    public class AssinaturaMotoristaExecutivo
     {
         public Guid Id { get; private set; }
         public Guid MotoristaId { get; private set; }
@@ -19,9 +19,9 @@ namespace TransportesApp.Domain.Entities
         public DateTime? DataCancelamento { get; private set; }
         public StatusAssinatura Status { get; private set; }
 
-        protected AssinaturaMotoristaBlack() { }
+        protected AssinaturaMotoristaExecutivo() { }
 
-        public AssinaturaMotoristaBlack(Guid motoristaId)
+        public AssinaturaMotoristaExecutivo(Guid motoristaId)
         {
             Id = Guid.NewGuid();
             MotoristaId = motoristaId;

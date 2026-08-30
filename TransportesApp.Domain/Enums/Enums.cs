@@ -22,13 +22,13 @@
     }
 
     // Normal em primeiro (valor 0) pelo mesmo motivo dos outros enums acima: é o padrão seguro pro
-    // Swagger preencher sozinho, e é a categoria que já existe hoje. Black é a categoria premium —
+    // Swagger preencher sozinho, e é a categoria que já existe hoje. Executivo é a categoria premium —
     // veículo até 3 anos, sedan médio ou SUV (autodeclarado pelo motorista ao assinar, ver
-    // AssinaturaMotoristaBlack) — com preço mais alto por faixa (ver FaixaDistancia.PrecoAvulsoBlack).
+    // AssinaturaMotoristaExecutivo) — com preço mais alto por faixa (ver FaixaDistancia.PrecoAvulsoExecutivo).
     public enum CategoriaCorrida
     {
         Normal,
-        Black
+        Executivo
     }
 
     public enum StatusCorrida 
@@ -104,16 +104,16 @@
     // RecargaCarteira foi adicionado depois (por isso fica por último, valor 3, e não mexe nos valores
     // já gravados no banco) — é a recarga de saldo da carteira via Mercado Pago; corridas avulsas
     // debitam desse saldo na hora (ver CorridaService), sem precisar de pagamento por corrida.
-    // AssinaturaMotoristaBlack foi adicionado depois (por isso fica por último, valor 4, e não mexe
-    // nos valores já gravados no banco) — assinatura do motorista pra categoria Black (ver
-    // AssinaturaMotoristaBlack e AssinaturaMotoristaBlackService).
+    // AssinaturaMotoristaExecutivo foi adicionado depois (por isso fica por último, valor 4, e não mexe
+    // nos valores já gravados no banco) — assinatura do motorista pra categoria Executivo (ver
+    // AssinaturaMotoristaExecutivo e AssinaturaMotoristaExecutivoService).
     public enum TipoReferenciaPagamento
     {
         AssinaturaPlano,
         PacoteCorridas,
         Corrida,
         RecargaCarteira,
-        AssinaturaMotoristaBlack
+        AssinaturaMotoristaExecutivo
     }
 
     // Status Aprovado/Recusado/Cancelado/EmProcessamento mapeados a partir do "status" que o gateway

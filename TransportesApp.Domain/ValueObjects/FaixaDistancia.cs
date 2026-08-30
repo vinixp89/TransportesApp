@@ -12,26 +12,26 @@ namespace TransportesApp.Domain.ValueObjects
 
         public decimal PrecoAvulso { get; }
 
-        // Preço da mesma faixa de distância na categoria Black (veículo até 3 anos, sedan médio ou
-        // SUV — ver AssinaturaMotoristaBlack) — só corrida avulsa por enquanto, pacotes e benefício de
+        // Preço da mesma faixa de distância na categoria Executivo (veículo até 3 anos, sedan médio ou
+        // SUV — ver AssinaturaMotoristaExecutivo) — só corrida avulsa por enquanto, pacotes e benefício de
         // plano continuam exclusivos da categoria Normal (ver CorridaService.CriarAsync).
-        public decimal PrecoAvulsoBlack { get; }
+        public decimal PrecoAvulsoExecutivo { get; }
 
         // Tamanhos de pacote de corridas disponíveis pra compra.
         public static readonly int[] TamanhosPacoteDisponiveis = { 3, 5, 10 };
 
-        public FaixaDistancia(CorFaixa cor, double kmMinimo, double? kmMaximo, decimal precoAvulso, decimal precoAvulsoBlack)
+        public FaixaDistancia(CorFaixa cor, double kmMinimo, double? kmMaximo, decimal precoAvulso, decimal precoAvulsoExecutivo)
         {
             Cor = cor;
             KmMinimo = kmMinimo;
             KmMaximo = kmMaximo;
             PrecoAvulso = precoAvulso;
-            PrecoAvulsoBlack = precoAvulsoBlack;
+            PrecoAvulsoExecutivo = precoAvulsoExecutivo;
         }
 
         public bool Contem(double km) => km >= KmMinimo && (KmMaximo is null || km <= KmMaximo);
 
-        public decimal ObterPreco(CategoriaCorrida categoria) => categoria == CategoriaCorrida.Black ? PrecoAvulsoBlack : PrecoAvulso;
+        public decimal ObterPreco(CategoriaCorrida categoria) => categoria == CategoriaCorrida.Executivo ? PrecoAvulsoExecutivo : PrecoAvulso;
 
         // Preço do pacote é proporcional ao avulso (sem desconto) — a margem por corrida já é enxuta (15%),
         // então dar desconto em pacote cortaria direto na margem.
