@@ -70,6 +70,11 @@ namespace TransportesApp.Application.Services
                     throw new InvalidOperationException(
                         $"Este pacote é da faixa {pacote.Faixa}, mas você escolheu doar uma corrida da faixa {request.Faixa}.");
 
+                // Pacote promocional (ganho na promoção de lançamento) não pode ser repassado — senão
+                // dava pra "vender"/transferir o brinde em vez de usá-lo você mesmo.
+                if (pacote.EhPromocional)
+                    throw new InvalidOperationException("Corridas ganhas em promoção não podem ser doadas.");
+
                 if (!pacote.TemCorridaDisponivel)
                     throw new InvalidOperationException("Este pacote não tem corridas disponíveis pra doar.");
 

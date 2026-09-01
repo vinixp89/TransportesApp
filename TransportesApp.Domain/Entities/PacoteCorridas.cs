@@ -14,6 +14,12 @@ namespace TransportesApp.Domain.Entities
         public int QuantidadeUsada { get; private set; }
         public decimal PrecoPago { get; private set; }
         public DateTime DataCompra { get; private set; }
+        // Marca pacotes concedidos de graça pela empresa (promoção de lançamento — ver
+        // PromocaoLancamentoService). Corrida cancelada desse pacote não devolve a corrida pro
+        // cliente (ver CorridaService.ReverterConsumoAsync) e o pacote não pode ser doado (ver
+        // DoacaoService) — sem isso, dava pra cancelar a corrida de brinde repetidamente ou doar
+        // ela pra outra conta e converter o presente em algo que não era a intenção da promoção.
+        public bool EhPromocional { get; private set; }
 
         public int QuantidadeRestante => QuantidadeTotal - QuantidadeUsada;
         public bool TemCorridaDisponivel => QuantidadeRestante > 0;
@@ -39,7 +45,7 @@ namespace TransportesApp.Domain.Entities
             DataCompra = DateTime.UtcNow;
         }
 
-        private PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal precoPago)
+        private PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal precoPago, bool ehPromocional = false)
         {
             Id = Guid.NewGuid();
             ClienteId = clienteId;
@@ -48,6 +54,7 @@ namespace TransportesApp.Domain.Entities
             QuantidadeUsada = 0;
             PrecoPago = precoPago;
             DataCompra = DateTime.UtcNow;
+            EhPromocional = ehPromocional;
         }
 
         // Pacote de 1 corrida criado por uma doação (ver DoacaoService.DoarAsync) — sempre quantidade 1,
@@ -57,6 +64,14 @@ namespace TransportesApp.Domain.Entities
         {
             var precoAvulso = FaixaDistancia.ObterPorCor(faixa).PrecoAvulso;
             return new PacoteCorridas(clienteId, faixa, quantidade: 1, precoPago: precoAvulso);
+        }
+
+        // Pacote de 1 corrida concedido de graça pela empresa (promoção de lançamento — ver
+        // PromocaoLancamentoService). PrecoPago fica 0 porque o cliente não pagou nada — o custo é
+        // absorvido pela empresa na hora em que a corrida é aceita por um motorista.
+        public static PacoteCorridas CriarPromocional(Guid clienteId, CorFaixa faixa)
+        {
+            return new PacoteCorridas(clienteId, faixa, quantidade: 1, precoPago: 0m, ehPromocional: true);
         }
 
         // Consome uma corrida do pacote. Chamado quando uma corrida por pacote é criada.

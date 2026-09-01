@@ -486,7 +486,10 @@ namespace TransportesApp.Application.Services
             {
                 case TipoConsumo.Pacote when corrida.PacoteCorridasId is not null:
                     var pacote = await _pacoteCorridasRepository.ObterPorIdAsync(corrida.PacoteCorridasId.Value);
-                    if (pacote is not null)
+                    // Pacote promocional (brinde da promoção de lançamento) nunca devolve a corrida —
+                    // senão o cliente poderia cancelar e recriar a corrida de graça indefinidamente,
+                    // efetivamente "sacando" o valor do brinde em corridas repetidas.
+                    if (pacote is not null && !pacote.EhPromocional)
                     {
                         pacote.DevolverCorrida();
                         await _pacoteCorridasRepository.AtualizarAsync(pacote);

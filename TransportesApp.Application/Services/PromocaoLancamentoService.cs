@@ -45,7 +45,7 @@ namespace TransportesApp.Application.Services
             var promocao = new PromocaoLancamento(clienteId, FaixaPromocional);
             await _promocaoRepository.AdicionarAsync(promocao);
 
-            var pacote = PacoteCorridas.CriarDoacao(clienteId, FaixaPromocional);
+            var pacote = PacoteCorridas.CriarPromocional(clienteId, FaixaPromocional);
             await _pacoteCorridasRepository.AdicionarAsync(pacote);
         }
 

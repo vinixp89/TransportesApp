@@ -31,6 +31,10 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(p => p.DataCompra)
                 .IsRequired();
 
+            builder.Property(p => p.EhPromocional)
+                .IsRequired()
+                .HasDefaultValue(false);
+
             builder.HasOne<Cliente>()
                 .WithMany()
                 .HasForeignKey(p => p.ClienteId)
