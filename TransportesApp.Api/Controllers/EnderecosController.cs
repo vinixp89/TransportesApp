@@ -4,9 +4,13 @@ using TransportesApp.Application.Services;
 
 namespace TransportesApp.Api.Controllers
 {
+    // Sem [Authorize]: usado tanto depois do login (pedir corrida) quanto ANTES de existir login
+    // nenhum (tela de Cadastro, pra preencher o endereço do cliente/motorista) — exigir token aqui
+    // deixaria ninguém conseguir se cadastrar. Não expõe nada sensível, só faz proxy do Google
+    // Places (protege a chave da API de mapas de ficar exposta no app).
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class EnderecosController : ControllerBase
     {
         private readonly EnderecoAutocompleteService _enderecoAutocompleteService;
