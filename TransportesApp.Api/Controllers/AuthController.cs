@@ -25,6 +25,7 @@ namespace TransportesApp.Api.Controllers
         private readonly IEmailService _emailService;
         private readonly IMemoryCache _cache;
         private readonly ILogger<AuthController> _logger;
+        private readonly PromocaoLancamentoService _promocaoLancamentoService;
 
         // Código de redefinição de senha (6 dígitos) guardado em memória por 15 min, junto com o
         // token de verdade do Identity que ele representa — não precisa de tabela nova no banco
@@ -41,7 +42,8 @@ namespace TransportesApp.Api.Controllers
             MotoristaService motoristaService,
             IEmailService emailService,
             IMemoryCache cache,
-            ILogger<AuthController> logger)
+            ILogger<AuthController> logger,
+            PromocaoLancamentoService promocaoLancamentoService)
         {
             _userManager = userManager;
             _configuration = configuration;
@@ -50,6 +52,7 @@ namespace TransportesApp.Api.Controllers
             _emailService = emailService;
             _cache = cache;
             _logger = logger;
+            _promocaoLancamentoService = promocaoLancamentoService;
         }
 
         [HttpPost("registrar-cliente")]
@@ -59,7 +62,21 @@ namespace TransportesApp.Api.Controllers
                 request.Senha,
                 TipoUsuario.Cliente,
                 request.Cliente,
-                _clienteService.CriarAsync,
+                async (dados, usuarioId, email) =>
+                {
+                    var cliente = await _clienteService.CriarAsync(dados, usuarioId, email);
+
+                    // Promoção de lançamento (ver PromocaoLancamentoService) — nunca deve travar o
+                    // cadastro em si, mesmo padrão defensivo do e-mail de boas-vindas logo abaixo.
+                    try
+                    {
+                        await _promocaoLancamentoService.ConcederSeElegivelAsync(cliente.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Falha ao conceder promoção de lançamento pro cliente {ClienteId}", cliente.Id);
+                    }
+                },
                 dados => EmailTemplates.BoasVindasCliente(dados.Nome));
 
         [HttpPost("registrar-motorista")]
