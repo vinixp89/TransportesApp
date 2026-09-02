@@ -411,6 +411,11 @@ namespace TransportesApp.Infrastructure.Migrations
                     b.Property<DateTime>("DataCompra")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("EhPromocional")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("Faixa")
                         .HasColumnType("integer");
 
@@ -477,6 +482,29 @@ namespace TransportesApp.Infrastructure.Migrations
                     b.HasIndex("TipoReferencia", "ReferenciaId");
 
                     b.ToTable("Pagamentos", (string)null);
+                });
+
+            modelBuilder.Entity("TransportesApp.Domain.Entities.PromocaoLancamento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DataConcedida")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Faixa")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClienteId")
+                        .IsUnique();
+
+                    b.ToTable("PromocoesLancamento", (string)null);
                 });
 
             modelBuilder.Entity("TransportesApp.Domain.Entities.TransacaoCarteira", b =>
@@ -914,6 +942,15 @@ namespace TransportesApp.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("TransportesApp.Domain.Entities.PacoteCorridas", b =>
+                {
+                    b.HasOne("TransportesApp.Domain.Entities.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TransportesApp.Domain.Entities.PromocaoLancamento", b =>
                 {
                     b.HasOne("TransportesApp.Domain.Entities.Cliente", null)
                         .WithMany()
