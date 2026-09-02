@@ -7,6 +7,7 @@ namespace TransportesApp.Application.DTOs
         string Cpf,
         string PlacaVeiculo,
         string ModeloVeiculo,
+        int AnoVeiculo,
         string Logradouro,
         string Numero,
         string Bairro,

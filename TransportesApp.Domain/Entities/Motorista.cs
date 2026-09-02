@@ -18,18 +18,22 @@ namespace TransportesApp.Domain.Entities
         public double? LongitudeAtual { get; private set; }
         public double AvaliacaoMedia { get; private set; }
 
-        // Ano de fabricação do veículo — só é preenchido quando o motorista assina a categoria Executivo
-        // (ver AssinaturaMotoristaExecutivoService.AssinarAsync), que exige veículo com até 3 anos.
-        // Null pra quem nunca assinou Executivo (não é coletado no cadastro comum).
+        // Ano de fabricação do veículo — coletado já no cadastro (ver validação abaixo, que exige no
+        // máximo IdadeMaximaVeiculoAnos). Continua nullable porque motoristas cadastrados antes dessa
+        // exigência existir não têm esse dado preenchido.
         public int? AnoVeiculo { get; private set; }
 
         public DateTime DataCadastro { get; private set; }
+
+        // Idade máxima aceita pro veículo no cadastro comum — mais permissiva que os 3 anos exigidos
+        // pra assinar a categoria Executivo (ver VeiculoElegivelParaExecutivo).
+        public const int IdadeMaximaVeiculoAnos = 12;
 
         protected Motorista() { }
 
 
 
-        public Motorista(Guid usuarioId, string cnh, string cpf, string placaVeiculo, string modeloVeiculo, Endereco endereco)
+        public Motorista(Guid usuarioId, string cnh, string cpf, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo)
         {
 
             if (string.IsNullOrWhiteSpace(cnh))
@@ -41,6 +45,12 @@ namespace TransportesApp.Domain.Entities
             if (endereco is null)
                 throw new ArgumentException("Endereço é obrigatório.");
 
+            if (anoVeiculo > DateTime.UtcNow.Year)
+                throw new ArgumentException("Ano de fabricação do veículo não pode ser no futuro.");
+
+            if (DateTime.UtcNow.Year - anoVeiculo > IdadeMaximaVeiculoAnos)
+                throw new ArgumentException($"O veículo precisa ter no máximo {IdadeMaximaVeiculoAnos} anos de fabricação.");
+
             Id = Guid.NewGuid();
             UsuarioId = usuarioId;
             CNH = cnh;
@@ -51,6 +61,7 @@ namespace TransportesApp.Domain.Entities
             Status = StatusMotorista.Offline;
             AvaliacaoMedia = 5.0;
             DataCadastro = DateTime.UtcNow;
+            AnoVeiculo = anoVeiculo;
 
 
 

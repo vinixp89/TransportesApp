@@ -33,7 +33,8 @@ namespace TransportesApp.Application.Services
                 cpf: request.Cpf,
                 placaVeiculo: request.PlacaVeiculo,
                 modeloVeiculo: request.ModeloVeiculo,
-                endereco: endereco
+                endereco: endereco,
+                anoVeiculo: request.AnoVeiculo
             );
 
             await _motoristaRepository.AdicionarAsync(motorista);
