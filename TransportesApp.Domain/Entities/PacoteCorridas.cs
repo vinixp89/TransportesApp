@@ -26,11 +26,18 @@ namespace TransportesApp.Domain.Entities
 
         protected PacoteCorridas() { }
 
-        public PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade)
+        // percentualDesconto vem do plano de assinatura ativo do cliente, se tiver (ver
+        // PlanoAssinatura.PercentualDescontoPacotes e PacoteCorridasService.CriarAsync) — 0 pra quem
+        // não tem plano com desconto. Aplicado aqui, não no controller/service, pra garantir que o
+        // preço registrado sempre reflita exatamente o que foi cobrado.
+        public PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal percentualDesconto = 0m)
         {
             if (!FaixaDistancia.TamanhosPacoteDisponiveis.Contains(quantidade))
                 throw new ArgumentException(
                     $"Pacote de {quantidade} corridas não é um tamanho disponível. Tamanhos válidos: {string.Join(", ", FaixaDistancia.TamanhosPacoteDisponiveis)}.");
+
+            if (percentualDesconto is < 0m or >= 1m)
+                throw new ArgumentException("Percentual de desconto inválido.");
 
             var faixaDistancia = FaixaDistancia.ObterPorCor(faixa);
 
@@ -39,9 +46,9 @@ namespace TransportesApp.Domain.Entities
             Faixa = faixa;
             QuantidadeTotal = quantidade;
             QuantidadeUsada = 0;
-            // Preço fica travado no momento da compra — se o preço avulso da faixa mudar depois,
-            // não afeta pacotes já comprados.
-            PrecoPago = faixaDistancia.ObterPrecoPacote(quantidade);
+            // Preço fica travado no momento da compra — se o preço avulso da faixa ou o plano do
+            // cliente mudarem depois, não afeta pacotes já comprados.
+            PrecoPago = Math.Round(faixaDistancia.ObterPrecoPacote(quantidade) * (1 - percentualDesconto), 2, MidpointRounding.AwayFromZero);
             DataCompra = DateTime.UtcNow;
         }
 

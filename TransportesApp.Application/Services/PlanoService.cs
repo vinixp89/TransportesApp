@@ -21,7 +21,7 @@ namespace TransportesApp.Application.Services
         public IEnumerable<PlanoResponse> ObterCatalogo()
         {
             return PlanoAssinatura.ListarTodos()
-                .Select(p => new PlanoResponse(p.Tipo, p.Nome, p.PrecoMensal, p.Beneficios));
+                .Select(p => new PlanoResponse(p.Tipo, p.Nome, p.PrecoMensal, p.Beneficios, p.PercentualDescontoPacotes));
         }
 
         public async Task<AssinaturaPlanoResponse?> ObterAssinaturaAtualAsync(Guid clienteId)
@@ -133,7 +133,8 @@ namespace TransportesApp.Application.Services
                 plano.Nome,
                 plano.PrecoMensal,
                 assinatura.DataInicio,
-                assinatura.Status
+                assinatura.Status,
+                plano.PercentualDescontoPacotes
             );
         }
     }

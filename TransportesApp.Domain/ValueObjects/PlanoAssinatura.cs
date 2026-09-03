@@ -18,13 +18,21 @@ namespace TransportesApp.Domain.ValueObjects
         // o catálogo fixo, sem estado.
         public CorFaixa? CorGratisPorMes { get; }
 
-        public PlanoAssinatura(TipoPlano tipo, string nome, decimal precoMensal, IReadOnlyList<string> beneficios, CorFaixa? corGratisPorMes = null)
+        // Desconto aplicado na compra de pacotes de corrida (ver PacoteCorridasService.CriarAsync) —
+        // estruturado à parte do texto em Beneficios pra não precisar fazer parsing de string pra
+        // aplicar o valor de verdade.
+        public decimal PercentualDescontoPacotes { get; }
+
+        public PlanoAssinatura(
+            TipoPlano tipo, string nome, decimal precoMensal, IReadOnlyList<string> beneficios,
+            CorFaixa? corGratisPorMes = null, decimal percentualDescontoPacotes = 0m)
         {
             Tipo = tipo;
             Nome = nome;
             PrecoMensal = precoMensal;
             Beneficios = beneficios;
             CorGratisPorMes = corGratisPorMes;
+            PercentualDescontoPacotes = percentualDescontoPacotes;
         }
 
         private static readonly List<PlanoAssinatura> Planos = new()
@@ -40,7 +48,7 @@ namespace TransportesApp.Domain.ValueObjects
                 "10% de desconto em todos os pacotes de corrida",
                 "Suporte prioritário por chat",
                 "Cancelamento gratuito em até 5 minutos",
-            }),
+            }, percentualDescontoPacotes: 0.10m),
             new PlanoAssinatura(TipoPlano.Premium, "Premium", 39.90m, new[]
             {
                 "20% de desconto em todos os pacotes de corrida",
@@ -48,15 +56,15 @@ namespace TransportesApp.Domain.ValueObjects
                 "Cancelamento gratuito em até 15 minutos",
                 "Prioridade na fila de motoristas em horário de pico",
                 "1 corrida azul grátis por mês (não acumulável) — faça 1 corrida paga no mês pra liberar",
-            }, CorFaixa.Azul),
+            }, CorFaixa.Azul, percentualDescontoPacotes: 0.20m),
             new PlanoAssinatura(TipoPlano.Diamante, "Diamante", 59.90m, new[]
             {
                 "30% de desconto em todos os pacotes de corrida",
                 "Suporte prioritário 24 horas",
                 "Cancelamento gratuito em até 20 minutos",
                 "Prioridade máxima na fila de motoristas em horário de pico",
-                "1 corrida vermelha grátis por mês (não acumulável) — faça 1 corrida paga no mês pra liberar",
-            }, CorFaixa.Vermelha),
+                "1 corrida amarela grátis por mês (não acumulável) — faça 1 corrida paga no mês pra liberar",
+            }, CorFaixa.Amarela, percentualDescontoPacotes: 0.30m),
         };
 
         public static IReadOnlyList<PlanoAssinatura> ListarTodos() => Planos.AsReadOnly();

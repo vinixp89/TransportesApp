@@ -8,10 +8,14 @@ namespace TransportesApp.Application.Services
     public class PacoteCorridasService
     {
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
+        private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
 
-        public PacoteCorridasService(IPacoteCorridasRepository pacoteCorridasRepository)
+        public PacoteCorridasService(
+            IPacoteCorridasRepository pacoteCorridasRepository,
+            IAssinaturaPlanoRepository assinaturaPlanoRepository)
         {
             _pacoteCorridasRepository = pacoteCorridasRepository;
+            _assinaturaPlanoRepository = assinaturaPlanoRepository;
         }
 
         // Não depende do repositório — é só a tabela de preços do domínio, montada pra exibição.
@@ -28,11 +32,25 @@ namespace TransportesApp.Application.Services
 
         public async Task<PacoteCorridasResponse> CriarAsync(CriarPacoteCorridasRequest request, Guid clienteId)
         {
-            var pacote = new PacoteCorridas(clienteId, request.Faixa, request.Quantidade);
+            var percentualDesconto = await ObterPercentualDescontoAsync(clienteId);
+
+            var pacote = new PacoteCorridas(clienteId, request.Faixa, request.Quantidade, percentualDesconto);
 
             await _pacoteCorridasRepository.AdicionarAsync(pacote);
 
             return MapearParaResponse(pacote);
+        }
+
+        // Desconto do plano de assinatura ativo do cliente, se tiver (ver PlanoAssinatura.PercentualDescontoPacotes).
+        // 0 pra quem não tem assinatura ativa ou cujo plano não dá desconto (ex: Básico).
+        private async Task<decimal> ObterPercentualDescontoAsync(Guid clienteId)
+        {
+            var assinatura = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(clienteId);
+
+            if (assinatura is null)
+                return 0m;
+
+            return PlanoAssinatura.ObterPorTipo(assinatura.Tipo).PercentualDescontoPacotes;
         }
 
         public async Task<PacoteCorridasResponse?> ObterPorIdAsync(Guid id)

@@ -4,7 +4,7 @@ namespace TransportesApp.Application.DTOs
 {
     // Catálogo dos 3 planos disponíveis, com preço e benefícios — vem do value object
     // PlanoAssinatura, não do banco.
-    public record PlanoResponse(TipoPlano Tipo, string Nome, decimal PrecoMensal, IReadOnlyList<string> Beneficios);
+    public record PlanoResponse(TipoPlano Tipo, string Nome, decimal PrecoMensal, IReadOnlyList<string> Beneficios, decimal PercentualDescontoPacotes);
 
     public record AssinarPlanoRequest(TipoPlano Tipo);
 
@@ -14,7 +14,8 @@ namespace TransportesApp.Application.DTOs
         string NomePlano,
         decimal PrecoMensal,
         DateTime DataInicio,
-        StatusAssinatura Status
+        StatusAssinatura Status,
+        decimal PercentualDescontoPacotes
     );
 
     // Resposta de POST /Planos/assinar — CheckoutUrl vem preenchida quando o plano é pago e o cliente
