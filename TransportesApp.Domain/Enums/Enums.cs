@@ -128,4 +128,12 @@
         Cancelado,
         Estornado
     }
+
+    // Geral em primeiro (valor 0) pelo mesmo motivo dos outros enums acima. CorridaDoada é usado por
+    // DoacaoService.DoarAsync pra avisar quem recebeu a corrida de presente (ver Notificacao).
+    public enum TipoNotificacao
+    {
+        Geral,
+        CorridaDoada
+    }
 }

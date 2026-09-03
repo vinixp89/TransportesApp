@@ -62,6 +62,21 @@ namespace TransportesApp.Application.Services
             return clientes.Select(MapearParaResponse);
         }
 
+        // Anonimiza os dados do Cliente (ver Cliente.Excluir) — quem chama isso (AuthController)
+        // também bloqueia o login da conta via UserManager, já que isso aqui não mexe em Identity.
+        public async Task<bool> ExcluirContaAsync(Guid usuarioId)
+        {
+            var cliente = await _clienteRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return false;
+
+            cliente.Excluir();
+            await _clienteRepository.AtualizarAsync(cliente);
+
+            return true;
+        }
+
         private static ClienteResponse MapearParaResponse(Cliente cliente)
         {
             return new ClienteResponse(

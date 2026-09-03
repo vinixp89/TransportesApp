@@ -49,5 +49,20 @@ namespace TransportesApp.Domain.Entities
             AvaliacaoMedia = null;
             DataCadastro = DateTime.UtcNow;
         }
+
+        // Exclusão de conta (ver AuthController.ExcluirConta) — não é um DELETE de verdade, porque
+        // Corridas/PacoteCorridas/TransacaoCarteira têm FK Restrict pra Cliente (histórico financeiro
+        // precisa ser preservado por obrigação legal, ver seção 7 da política de privacidade). Em vez
+        // disso, anonimiza os dados pessoais aqui e quem chama isso também bloqueia o login da conta
+        // (ver UserManager no AuthController) — na prática a conta fica inacessível e sem dados
+        // identificáveis, que é o resultado que importa pro usuário.
+        public void Excluir()
+        {
+            Nome = "Conta excluída";
+            Cpf = "00000000000";
+            Telefone = "";
+            Email = $"excluido-{Id:N}@vainaboamobilidade.com.br";
+            Endereco = new Endereco("Removido", "0", "Removido", "Removido", "SP", 0, 0);
+        }
     }
 }

@@ -15,17 +15,20 @@ namespace TransportesApp.Application.Services
         private readonly ICarteiraRepository _carteiraRepository;
         private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
+        private readonly NotificacaoService _notificacaoService;
 
         public DoacaoService(
             IClienteRepository clienteRepository,
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository,
-            IPacoteCorridasRepository pacoteCorridasRepository)
+            IPacoteCorridasRepository pacoteCorridasRepository,
+            NotificacaoService notificacaoService)
         {
             _clienteRepository = clienteRepository;
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
             _pacoteCorridasRepository = pacoteCorridasRepository;
+            _notificacaoService = notificacaoService;
         }
 
         // clienteLogadoId exclui o próprio cliente do resultado — buscar o próprio e-mail não deveria
@@ -107,6 +110,13 @@ namespace TransportesApp.Application.Services
 
             var pacoteDoado = PacoteCorridas.CriarDoacao(destinatario.Id, request.Faixa);
             await _pacoteCorridasRepository.AdicionarAsync(pacoteDoado);
+
+            var doador = await _clienteRepository.ObterPorIdAsync(doadorId);
+            await _notificacaoService.CriarAsync(
+                destinatario.Id,
+                "Você ganhou uma corrida! 🎉",
+                $"{doador?.Nome ?? "Alguém"} te presenteou com uma corrida {request.Faixa}. Já está pronta pra usar.",
+                TipoNotificacao.CorridaDoada);
 
             return new DoarCorridaResponse(destinatario.Nome, request.Faixa, valor, saldoCarteira, quantidadeRestantePacote);
         }

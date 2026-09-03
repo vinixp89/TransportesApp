@@ -207,6 +207,38 @@ namespace TransportesApp.Api.Controllers
             return Ok(token);
         }
 
+        // Exclusão de conta a pedido do cliente (ver tela "Configurações da conta" no app). Anonimiza
+        // os dados pessoais do Cliente (ver Cliente.Excluir) e bloqueia o login definitivamente — não
+        // apaga a linha do Identity nem os dados financeiros/histórico de corridas (ficam retidos e
+        // anonimizados, conforme a política de privacidade).
+        [HttpPost("excluir-conta")]
+        [Authorize(Roles = "Cliente")]
+        public async Task<IActionResult> ExcluirConta()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var usuario = await _userManager.FindByIdAsync(usuarioId.ToString());
+
+            if (usuario is null)
+                return NotFound();
+
+            var excluiu = await _clienteService.ExcluirContaAsync(usuarioId);
+
+            if (!excluiu)
+                return BadRequest(new { mensagem = "Cadastro de cliente não encontrado pra essa conta." });
+
+            var emailAnonimo = $"excluido-{usuario.Id:N}@vainaboamobilidade.com.br";
+            usuario.Email = emailAnonimo;
+            usuario.UserName = emailAnonimo;
+            usuario.EmailConfirmed = false;
+            await _userManager.UpdateAsync(usuario);
+            await _userManager.SetLockoutEnabledAsync(usuario, true);
+            await _userManager.SetLockoutEndDateAsync(usuario, DateTimeOffset.MaxValue);
+
+            return NoContent();
+        }
+
         private async Task<AuthResponse> GerarTokenAsync(Usuario usuario)
         {
             var jwtKey = _configuration["Jwt:Key"];
