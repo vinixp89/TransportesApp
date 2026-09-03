@@ -45,6 +45,11 @@ services:
     # tráfego chega em api:8080 via reverse_proxy do Caddy, não precisa mais expor direto.
     expose:
       - "8080"
+    volumes:
+      # Fotos de verificação dos motoristas (selfie, veículo, placa — ver MotoristasController) —
+      # sem isso, um "docker compose up --build" apaga tudo que foi enviado, porque o container é
+      # recriado do zero a cada deploy.
+      - motorista_uploads:/app/uploads
 
   caddy:
     image: caddy:2-alpine
@@ -63,3 +68,4 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  motorista_uploads:

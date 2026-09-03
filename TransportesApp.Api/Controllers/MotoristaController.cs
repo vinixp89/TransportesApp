@@ -14,11 +14,21 @@ namespace TransportesApp.Api.Controllers
     {
         private readonly MotoristaService _motoristaService;
         private readonly AssinaturaMotoristaExecutivoService _assinaturaExecutivoService;
+        private readonly IWebHostEnvironment _ambiente;
 
-        public MotoristasController(MotoristaService motoristaService, AssinaturaMotoristaExecutivoService assinaturaExecutivoService)
+        // Tamanho máximo por foto e extensões aceitas — autodeclarado, sem verificação de conteúdo
+        // real da imagem (nenhuma outra foto/documento no sistema tem essa verificação hoje).
+        private const long TamanhoMaximoFotoBytes = 8 * 1024 * 1024;
+        private static readonly HashSet<string> ExtensoesAceitas = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png" };
+
+        public MotoristasController(
+            MotoristaService motoristaService,
+            AssinaturaMotoristaExecutivoService assinaturaExecutivoService,
+            IWebHostEnvironment ambiente)
         {
             _motoristaService = motoristaService;
             _assinaturaExecutivoService = assinaturaExecutivoService;
+            _ambiente = ambiente;
         }
 
         [Authorize(Roles = "Motorista")]
@@ -30,6 +40,62 @@ namespace TransportesApp.Api.Controllers
 
             var motorista = await _motoristaService.CriarAsync(request, usuarioId);
             return Ok(motorista);
+        }
+
+        // Fotos de verificação (selfie, veículo, placa) pedidas depois do cadastro — sempre as 3
+        // juntas, numa única tela do app. Salva em disco (não no banco) dentro de uma pasta por
+        // motorista, pra nunca misturar arquivo de conta diferente.
+        [Authorize(Roles = "Motorista")]
+        [HttpPost("fotos")]
+        [RequestSizeLimit(30 * 1024 * 1024)]
+        public async Task<IActionResult> EnviarFotos(IFormFile selfie, IFormFile fotoVeiculo, IFormFile fotoPlaca)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return BadRequest(new { mensagem = "Cadastre-se como motorista antes de enviar fotos." });
+
+            foreach (var (nome, arquivo) in new[] { ("selfie", selfie), ("fotoVeiculo", fotoVeiculo), ("fotoPlaca", fotoPlaca) })
+            {
+                if (arquivo is null || arquivo.Length == 0)
+                    return BadRequest(new { mensagem = $"A foto \"{nome}\" é obrigatória." });
+
+                if (arquivo.Length > TamanhoMaximoFotoBytes)
+                    return BadRequest(new { mensagem = $"A foto \"{nome}\" passa do limite de 8 MB." });
+
+                if (!ExtensoesAceitas.Contains(Path.GetExtension(arquivo.FileName)))
+                    return BadRequest(new { mensagem = $"A foto \"{nome}\" precisa ser JPG ou PNG." });
+            }
+
+            var pastaMotorista = Path.Combine(_ambiente.ContentRootPath, "uploads", "motoristas", motorista.Id.ToString());
+            Directory.CreateDirectory(pastaMotorista);
+
+            var selfieUrl = await SalvarArquivoAsync(selfie, pastaMotorista, "selfie", motorista.Id);
+            var veiculoUrl = await SalvarArquivoAsync(fotoVeiculo, pastaMotorista, "veiculo", motorista.Id);
+            var placaUrl = await SalvarArquivoAsync(fotoPlaca, pastaMotorista, "placa", motorista.Id);
+
+            var atualizado = await _motoristaService.DefinirFotosAsync(usuarioId, selfieUrl, veiculoUrl, placaUrl);
+            return Ok(atualizado);
+        }
+
+        private static async Task<string> SalvarArquivoAsync(IFormFile arquivo, string pastaDestino, string nomeBase, Guid motoristaId)
+        {
+            var extensao = Path.GetExtension(arquivo.FileName).ToLowerInvariant();
+            var nomeArquivo = $"{nomeBase}{extensao}";
+            var caminhoCompleto = Path.Combine(pastaDestino, nomeArquivo);
+
+            await using (var stream = System.IO.File.Create(caminhoCompleto))
+                await arquivo.CopyToAsync(stream);
+
+            // Só um identificador relativo, guardado no banco — de propósito NÃO fica exposto como
+            // arquivo estático público (são documentos de identificação: selfie e placa do veículo),
+            // então não tem rota nenhuma servindo esse caminho publicamente. Se um dia precisar de
+            // revisão (ex: painel do Admin), a leitura tem que passar por um endpoint autenticado que
+            // valide a role antes de devolver o arquivo.
+            return $"motoristas/{motoristaId}/{nomeArquivo}";
         }
 
         [Authorize(Roles = "Admin")]

@@ -30,7 +30,8 @@ namespace TransportesApp.Application.DTOs
         EnderecoResponse Endereco,
         StatusMotorista Status,
         double? LatitudeAtual,
-        double? LongitudeAtual
+        double? LongitudeAtual,
+        bool FotosEnviadas
     );
 
     // Versão enxuta, sem CPF/CNH, pra um cliente ver motoristas disponíveis sem expor dados sensíveis de outra pessoa.

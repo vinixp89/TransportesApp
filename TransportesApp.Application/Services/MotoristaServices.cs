@@ -56,6 +56,23 @@ namespace TransportesApp.Application.Services
             return motorista is null ? null : MapearParaResponse(motorista);
         }
 
+        // Salva os caminhos das 3 fotos de verificação — quem já salvou os arquivos em disco e gerou
+        // essas URLs é o controller (MotoristasController.EnviarFotos), que lida com IFormFile/disco;
+        // aqui só persiste as strings na entidade.
+        public async Task<MotoristaResponse?> DefinirFotosAsync(
+            Guid usuarioId, string fotoSelfieUrl, string fotoVeiculoUrl, string fotoPlacaUrl)
+        {
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return null;
+
+            motorista.DefinirFotos(fotoSelfieUrl, fotoVeiculoUrl, fotoPlacaUrl);
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
         public async Task<IEnumerable<MotoristaResponse>> ListarAsync()
         {
             var motoristas = await _motoristaRepository.ListarAsync();
@@ -196,7 +213,8 @@ namespace TransportesApp.Application.Services
                 ),
                 motorista.Status,
                 motorista.LatitudeAtual,
-                motorista.LongitudeAtual
+                motorista.LongitudeAtual,
+                motorista.FotoSelfieUrl is not null && motorista.FotoVeiculoUrl is not null && motorista.FotoPlacaUrl is not null
             );
         }
     }

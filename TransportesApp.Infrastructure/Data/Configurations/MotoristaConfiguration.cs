@@ -34,6 +34,15 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(m => m.DataCadastro)
                 .IsRequired();
 
+            builder.Property(m => m.FotoSelfieUrl)
+                .HasMaxLength(300);
+
+            builder.Property(m => m.FotoVeiculoUrl)
+                .HasMaxLength(300);
+
+            builder.Property(m => m.FotoPlacaUrl)
+                .HasMaxLength(300);
+
             builder.OwnsOne(m => m.Endereco, endereco =>
             {
                 endereco.Property(e => e.Logradouro)

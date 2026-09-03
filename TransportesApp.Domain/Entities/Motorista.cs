@@ -23,6 +23,14 @@ namespace TransportesApp.Domain.Entities
         // exigência existir não têm esse dado preenchido.
         public int? AnoVeiculo { get; private set; }
 
+        // Fotos de verificação (selfie, veículo, placa) pedidas no cadastro — ver
+        // MotoristaService.DefinirFotosAsync. Guarda o caminho relativo do arquivo salvo no disco do
+        // servidor (ver MotoristasController), não o binário. Nullable porque quem se cadastrou antes
+        // dessa exigência existir não tem essas fotos ainda.
+        public string? FotoSelfieUrl { get; private set; }
+        public string? FotoVeiculoUrl { get; private set; }
+        public string? FotoPlacaUrl { get; private set; }
+
         public DateTime DataCadastro { get; private set; }
 
         // Idade máxima aceita pro veículo no cadastro comum — mais permissiva que os 3 anos exigidos
@@ -97,6 +105,16 @@ namespace TransportesApp.Domain.Entities
         // elegibilidade (ver VeiculoElegivelParaExecutivo). Não há verificação de foto/documento ainda,
         // é autodeclarado.
         public void DefinirAnoVeiculo(int anoVeiculo) => AnoVeiculo = anoVeiculo;
+
+        // Chamado depois do cadastro, quando o motorista envia as 3 fotos de verificação (ver
+        // MotoristasController.EnviarFotos) — os 3 argumentos vêm sempre juntos porque o app pede as
+        // três de uma vez, numa única tela.
+        public void DefinirFotos(string fotoSelfieUrl, string fotoVeiculoUrl, string fotoPlacaUrl)
+        {
+            FotoSelfieUrl = fotoSelfieUrl;
+            FotoVeiculoUrl = fotoVeiculoUrl;
+            FotoPlacaUrl = fotoPlacaUrl;
+        }
 
         // Categoria Executivo exige veículo com até 3 anos de fabricação (contando a partir do ano atual).
         public bool VeiculoElegivelParaExecutivo() => AnoVeiculo is not null && DateTime.UtcNow.Year - AnoVeiculo.Value <= 3;
