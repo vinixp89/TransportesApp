@@ -136,4 +136,32 @@
         Geral,
         CorridaDoada
     }
+
+    // Espelha TipoTransacaoCarteira, mas pro lado do motorista: CreditoCorrida é lançado automaticamente
+    // quando uma corrida é finalizada (ver CorridaService.FinalizarAsync), DebitoSaque quando ele pede
+    // um saque (ver CarteiraMotoristaService.SolicitarSaqueAsync) e EstornoSaque se esse saque for
+    // rejeitado pelo Admin (devolve o valor debitado de volta pro saldo).
+    public enum TipoTransacaoCarteiraMotorista
+    {
+        CreditoCorrida,
+        DebitoSaque,
+        EstornoSaque
+    }
+
+    // Como o motorista quer receber o saque — ver SolicitacaoSaque.
+    public enum TipoSaque
+    {
+        Pix,
+        TransferenciaBancaria
+    }
+
+    // Pendente é o valor 0 (padrão), igual os outros enums de status acima: toda solicitação nasce
+    // pendente até o Admin processar o pagamento manualmente (não tem integração com gateway pra
+    // saque, só pra cobrança — ver comentário em SolicitacaoSaque).
+    public enum StatusSolicitacaoSaque
+    {
+        Pendente,
+        Concluida,
+        Rejeitada
+    }
 }

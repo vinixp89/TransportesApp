@@ -44,6 +44,9 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<IPagamentoRepository, PagamentoRepository>();
             builder.Services.AddScoped<IPromocaoLancamentoRepository, PromocaoLancamentoRepository>();
             builder.Services.AddScoped<INotificacaoRepository, NotificacaoRepository>();
+            builder.Services.AddScoped<ICarteiraMotoristaRepository, CarteiraMotoristaRepository>();
+            builder.Services.AddScoped<ITransacaoCarteiraMotoristaRepository, TransacaoCarteiraMotoristaRepository>();
+            builder.Services.AddScoped<ISolicitacaoSaqueRepository, SolicitacaoSaqueRepository>();
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
             builder.Services.AddScoped<ClienteService>();
             builder.Services.AddScoped<MotoristaService>();
@@ -56,6 +59,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<DoacaoService>();
             builder.Services.AddScoped<PromocaoLancamentoService>();
             builder.Services.AddScoped<NotificacaoService>();
+            builder.Services.AddScoped<CarteiraMotoristaService>();
             builder.Services.AddScoped<EnderecoAutocompleteService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();

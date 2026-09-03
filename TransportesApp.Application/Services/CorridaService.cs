@@ -17,6 +17,7 @@ namespace TransportesApp.Application.Services
         private readonly ICarteiraRepository _carteiraRepository;
         private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
         private readonly AssinaturaMotoristaExecutivoService _assinaturaMotoristaExecutivoService;
+        private readonly CarteiraMotoristaService _carteiraMotoristaService;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
@@ -27,7 +28,8 @@ namespace TransportesApp.Application.Services
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository,
-            AssinaturaMotoristaExecutivoService assinaturaMotoristaExecutivoService)
+            AssinaturaMotoristaExecutivoService assinaturaMotoristaExecutivoService,
+            CarteiraMotoristaService carteiraMotoristaService)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
@@ -38,6 +40,7 @@ namespace TransportesApp.Application.Services
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
             _assinaturaMotoristaExecutivoService = assinaturaMotoristaExecutivoService;
+            _carteiraMotoristaService = carteiraMotoristaService;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
@@ -438,6 +441,15 @@ namespace TransportesApp.Application.Services
                     motorista.FinalizarCorrida();
                     await _motoristaRepository.AtualizarAsync(motorista);
                 }
+
+                // Repasse automático pro saldo do motorista — mesma regra usada em MapearParaResponse
+                // (85% do valor de referência da faixa), independente de a corrida ter sido paga pelo
+                // cliente, consumida de um pacote ou de uma corrida promocional/grátis: quem dirigiu
+                // recebe normalmente, o custo de uma corrida grátis é da empresa, não do motorista.
+                var valorReferenciaFinal = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria);
+                var valorMotoristaFinal = Math.Round(valorReferenciaFinal * PercentualMotorista, 2);
+                await _carteiraMotoristaService.CreditarPorCorridaAsync(
+                    corrida.MotoristaId.Value, valorMotoristaFinal, $"Corrida finalizada ({corrida.FaixaContratada})");
             }
 
             return new FinalizarCorridaResponse(estourouFaixa, MapearParaResponse(corrida));

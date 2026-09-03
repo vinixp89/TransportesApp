@@ -32,6 +32,9 @@ namespace TransportesApp.Infrastructure.Data
         public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
         public DbSet<PromocaoLancamento> PromocoesLancamento => Set<PromocaoLancamento>();
         public DbSet<Notificacao> Notificacoes => Set<Notificacao>();
+        public DbSet<CarteiraMotorista> CarteirasMotorista => Set<CarteiraMotorista>();
+        public DbSet<TransacaoCarteiraMotorista> TransacoesCarteiraMotorista => Set<TransacaoCarteiraMotorista>();
+        public DbSet<SolicitacaoSaque> SolicitacoesSaque => Set<SolicitacaoSaque>();
 
 
        protected override void OnModelCreating(ModelBuilder modelBuilder)
