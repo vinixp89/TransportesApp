@@ -16,7 +16,7 @@ namespace TransportesApp.Application.Services
     // à complexidade de fazer isso à prova de corrida crítica.
     public class PromocaoLancamentoService
     {
-        public const int LimiteVagas = 20;
+        public const int LimiteVagas = 10;
         public const CorFaixa FaixaPromocional = CorFaixa.Amarela;
 
         private readonly IPromocaoLancamentoRepository _promocaoRepository;
