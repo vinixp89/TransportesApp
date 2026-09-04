@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using MercadoPago.Config;
 using TransportesApp.Application.Services;
@@ -48,6 +49,34 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ITransacaoCarteiraMotoristaRepository, TransacaoCarteiraMotoristaRepository>();
             builder.Services.AddScoped<ISolicitacaoSaqueRepository, SolicitacaoSaqueRepository>();
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
+
+            // Cliente HTTP da API Banking do Banco Inter (envio de Pix pros saques dos motoristas —
+            // ver InterPagamentoGateway). Base address troca entre produção e sandbox pela config
+            // "Inter:Ambiente"; o certificado cliente (mTLS, exigido pelo Inter em toda chamada) só é
+            // adicionado se os dois arquivos estiverem configurados — sem eles, qualquer chamada falha
+            // na hora com uma mensagem clara em vez de silenciosamente ir sem autenticação.
+            builder.Services.AddHttpClient<IGatewayPagamentoSaque, InterPagamentoGateway>(client =>
+            {
+                var ambienteInter = builder.Configuration["Inter:Ambiente"];
+                client.BaseAddress = new Uri(string.Equals(ambienteInter, "Sandbox", StringComparison.OrdinalIgnoreCase)
+                    ? "https://cdpj-sandbox.partners.uatinter.co"
+                    : "https://cdpj.partners.bancointer.com.br");
+            }).ConfigurePrimaryHttpMessageHandler(() =>
+            {
+                var handler = new HttpClientHandler();
+
+                var certificadoPath = builder.Configuration["Inter:CertificadoPath"];
+                var chavePath = builder.Configuration["Inter:ChavePath"];
+
+                if (!string.IsNullOrWhiteSpace(certificadoPath) && !string.IsNullOrWhiteSpace(chavePath))
+                {
+                    var certificado = X509Certificate2.CreateFromPemFile(certificadoPath, chavePath);
+                    handler.ClientCertificates.Add(certificado);
+                    handler.ClientCertificateOptions = ClientCertificateOption.Manual;
+                }
+
+                return handler;
+            });
             builder.Services.AddScoped<ClienteService>();
             builder.Services.AddScoped<MotoristaService>();
             builder.Services.AddScoped<CorridaService>();

@@ -7,9 +7,11 @@ namespace TransportesApp.Application.Services
 {
     // Carteira/saldo do motorista, alimentada automaticamente pelo repasse das corridas finalizadas
     // (ver CorridaService.FinalizarAsync → CreditarPorCorridaAsync) e sacável via Pix ou transferência
-    // bancária. Não tem integração com gateway pra saque — o valor só sai da carteira na hora do pedido
-    // (pra não deixar sacar o mesmo saldo duas vezes); quem transfere o dinheiro de verdade é o Admin,
-    // manualmente, e marca a solicitação como concluída (ou rejeita, o que estorna o saldo).
+    // bancária. O valor só sai da carteira na hora do pedido (pra não deixar sacar o mesmo saldo duas
+    // vezes); quem efetiva o pagamento é o Admin, ao clicar Concluir — pra saques Pix, isso já dispara
+    // o envio de verdade via IGatewayPagamentoSaque (Banco Inter); transferência bancária continua
+    // manual (o Admin paga por fora e só registra aqui), porque exige dados que ainda não coletamos do
+    // motorista (nome completo, CPF/CNPJ e ISPB do banco).
     public class CarteiraMotoristaService
     {
         public const decimal ValorMinimoSaque = 20m;
@@ -17,15 +19,18 @@ namespace TransportesApp.Application.Services
         private readonly ICarteiraMotoristaRepository _carteiraRepository;
         private readonly ITransacaoCarteiraMotoristaRepository _transacaoRepository;
         private readonly ISolicitacaoSaqueRepository _solicitacaoRepository;
+        private readonly IGatewayPagamentoSaque _gatewayPagamentoSaque;
 
         public CarteiraMotoristaService(
             ICarteiraMotoristaRepository carteiraRepository,
             ITransacaoCarteiraMotoristaRepository transacaoRepository,
-            ISolicitacaoSaqueRepository solicitacaoRepository)
+            ISolicitacaoSaqueRepository solicitacaoRepository,
+            IGatewayPagamentoSaque gatewayPagamentoSaque)
         {
             _carteiraRepository = carteiraRepository;
             _transacaoRepository = transacaoRepository;
             _solicitacaoRepository = solicitacaoRepository;
+            _gatewayPagamentoSaque = gatewayPagamentoSaque;
         }
 
         public async Task<CarteiraMotoristaResponse> ObterOuCriarAsync(Guid motoristaId)
@@ -108,6 +113,27 @@ namespace TransportesApp.Application.Services
 
             if (solicitacao is null)
                 return null;
+
+            // Checado aqui (e não só dentro de solicitacao.Concluir()) pra nunca reenviar um Pix de
+            // uma solicitação que já foi processada antes.
+            if (solicitacao.Status != StatusSolicitacaoSaque.Pendente)
+                throw new InvalidOperationException("Essa solicitação já foi processada.");
+
+            if (solicitacao.Tipo == TipoSaque.Pix)
+            {
+                // IdIdempotente = Id da própria solicitação: se essa chamada for repetida (retry de
+                // rede, duplo clique), o Banco Inter trata como o mesmo pedido em vez de pagar de novo.
+                var envio = new EnvioPixSolicitado(
+                    solicitacao.Id.ToString(),
+                    solicitacao.Valor,
+                    "Vai na Boa - repasse motorista",
+                    solicitacao.ChavePix!);
+
+                // Deixa a exceção propagar se falhar (credenciais erradas, chave inválida etc.) — a
+                // solicitação continua Pendente e o saldo continua debitado/reservado, sem marcar como
+                // concluída sem o pagamento ter saído de verdade.
+                await _gatewayPagamentoSaque.EnviarPixAsync(envio);
+            }
 
             solicitacao.Concluir();
             await _solicitacaoRepository.AtualizarAsync(solicitacao);

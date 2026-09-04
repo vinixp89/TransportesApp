@@ -6,6 +6,10 @@
 # dotenv files
 .env
 
+# Certificado mTLS da API do Banco Inter (client_id/secret ficam no .env, mas o cert/chave são
+# arquivos separados — nunca comitar, ver InterPagamentoGateway).
+/inter-certs/
+
 # User-specific files
 *.rsuser
 *.suo

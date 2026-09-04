@@ -41,6 +41,12 @@ services:
       Smtp__Password: ${SMTP_PASSWORD}
       Smtp__From: ${SMTP_FROM}
       Smtp__EnableSsl: ${SMTP_ENABLESSL}
+      Inter__Ambiente: ${INTER_AMBIENTE}
+      Inter__ClientId: ${INTER_CLIENT_ID}
+      Inter__ClientSecret: ${INTER_CLIENT_SECRET}
+      Inter__CertificadoPath: /app/inter-certs/certificado.crt
+      Inter__ChavePath: /app/inter-certs/chave.key
+      Inter__ContaCorrente: ${INTER_CONTA_CORRENTE}
     # Só interna à rede do Docker agora que o Caddy (HTTPS) é a porta de entrada pública — o
     # tráfego chega em api:8080 via reverse_proxy do Caddy, não precisa mais expor direto.
     expose:
@@ -50,6 +56,10 @@ services:
       # sem isso, um "docker compose up --build" apaga tudo que foi enviado, porque o container é
       # recriado do zero a cada deploy.
       - motorista_uploads:/app/uploads
+      # Certificado mTLS da API do Banco Inter (ver InterPagamentoGateway) — arquivos ficam direto no
+      # servidor, em ./inter-certs/certificado.crt e ./inter-certs/chave.key, NUNCA no repositório
+      # (está no .gitignore). Bind mount somente leitura porque o container nunca precisa escrever ali.
+      - ./inter-certs:/app/inter-certs:ro
 
   caddy:
     image: caddy:2-alpine
