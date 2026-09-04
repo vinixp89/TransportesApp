@@ -14,11 +14,14 @@ namespace TransportesApp.Application.Services
         private readonly IPagamentoRepository _pagamentoRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
         private readonly IAssinaturaMotoristaExecutivoRepository _assinaturaMotoristaExecutivoRepository;
-        // Acessados direto (não via CarteiraService) pra evitar dependência circular: CarteiraService já
-        // depende de PagamentoService pra iniciar a recarga (ver CarteiraService.IniciarRecargaAsync), então
-        // PagamentoService não pode depender de volta de CarteiraService — só dos repositórios em si.
+        // Acessados direto (não via CarteiraService/CorridaService) pra evitar dependência circular:
+        // CarteiraService já depende de PagamentoService pra iniciar a recarga (ver
+        // CarteiraService.IniciarRecargaAsync) e CorridaService depende de PagamentoService pra iniciar
+        // o pagamento da corrida avulsa (ver CorridaService.IniciarCorridaAvulsaAsync) — então
+        // PagamentoService não pode depender de volta de nenhum dos dois, só dos repositórios em si.
         private readonly ICarteiraRepository _carteiraRepository;
         private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
+        private readonly ICorridaRepository _corridaRepository;
         private readonly IGatewayPagamento _gateway;
         private readonly IConfiguration _configuration;
 
@@ -28,6 +31,7 @@ namespace TransportesApp.Application.Services
             IAssinaturaMotoristaExecutivoRepository assinaturaMotoristaExecutivoRepository,
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository,
+            ICorridaRepository corridaRepository,
             IGatewayPagamento gateway,
             IConfiguration configuration)
         {
@@ -36,6 +40,7 @@ namespace TransportesApp.Application.Services
             _assinaturaMotoristaExecutivoRepository = assinaturaMotoristaExecutivoRepository;
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
+            _corridaRepository = corridaRepository;
             _gateway = gateway;
             _configuration = configuration;
         }
@@ -119,9 +124,8 @@ namespace TransportesApp.Application.Services
         }
 
         // Aplica o que cada tipo de referência precisa fazer quando o pagamento muda de status.
-        // AssinaturaPlano e RecargaCarteira já estão implementados — Pacotes/Corridas ainda são
-        // liberados na hora da criação, sem um estado "pendente de pagamento"; quando entrarem nesse
-        // fluxo, o efeito colateral deles (liberar o pacote, confirmar a corrida) entra aqui do mesmo jeito.
+        // Pacotes ainda são liberados na hora da criação, sem um estado "pendente de pagamento";
+        // quando entrar nesse fluxo, o efeito colateral dele (liberar o pacote) entra aqui do mesmo jeito.
         private async Task AplicarEfeitoColateralAsync(Pagamento pagamento)
         {
             if (pagamento.TipoReferencia == TipoReferenciaPagamento.RecargaCarteira)
@@ -133,6 +137,12 @@ namespace TransportesApp.Application.Services
             if (pagamento.TipoReferencia == TipoReferenciaPagamento.AssinaturaMotoristaExecutivo)
             {
                 await AplicarEfeitoAssinaturaMotoristaExecutivoAsync(pagamento);
+                return;
+            }
+
+            if (pagamento.TipoReferencia == TipoReferenciaPagamento.Corrida)
+            {
+                await AplicarEfeitoCorridaAvulsaAsync(pagamento);
                 return;
             }
 
@@ -181,6 +191,38 @@ namespace TransportesApp.Application.Services
                 assinatura.MarcarPagamentoRecusado();
                 await _assinaturaMotoristaExecutivoRepository.AtualizarAsync(assinatura);
             }
+        }
+
+        // Corrida avulsa: aprovado libera a corrida pros motoristas (ConfirmarPagamento — sai de
+        // AguardandoPagamento e vira Solicitada); recusado/cancelado cancela a corrida, que nunca
+        // chegou a existir de verdade pra ninguém. Também registra "corrida paga" na assinatura ativa
+        // do cliente (se tiver) só quando aprovado — é o mesmo efeito que CorridaService.CriarAsync já
+        // faz na hora pra Pacote/BeneficioPlano, mas aqui só depois que o pagamento realmente aconteceu.
+        private async Task AplicarEfeitoCorridaAvulsaAsync(Pagamento pagamento)
+        {
+            var corrida = await _corridaRepository.ObterPorIdAsync(pagamento.ReferenciaId);
+
+            if (corrida is null || corrida.Status != StatusCorrida.AguardandoPagamento)
+                return;
+
+            if (pagamento.Status == StatusPagamento.Aprovado)
+            {
+                corrida.ConfirmarPagamento();
+                await _corridaRepository.AtualizarAsync(corrida);
+
+                var assinatura = await _assinaturaPlanoRepository.ObterAtivaPorClienteAsync(corrida.ClienteId);
+                if (assinatura is not null)
+                {
+                    assinatura.RegistrarCorridaPaga(DateTime.UtcNow);
+                    await _assinaturaPlanoRepository.AtualizarAsync(assinatura);
+                }
+            }
+            else if (pagamento.Status is StatusPagamento.Recusado or StatusPagamento.Cancelado)
+            {
+                corrida.CancelarPorPagamentoRecusado();
+                await _corridaRepository.AtualizarAsync(corrida);
+            }
+            // EmProcessamento/Estornado não mexem na corrida aqui, mesmo motivo do branch AssinaturaPlano.
         }
 
         // Credita o saldo da carteira só quando o pagamento é aprovado — Recusado/Cancelado nunca

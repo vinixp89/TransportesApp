@@ -40,6 +40,8 @@ namespace TransportesApp.Api.Controllers
             }
         }
 
+        // Só pra corrida por Pacote ou BeneficioPlano (já pagos/liberados antes) — corrida avulsa usa
+        // POST /Corridas/avulsa, que abre um pagamento no Mercado Pago em vez de criar na hora.
         [Authorize(Roles = "Cliente")]
         [HttpPost]
         public async Task<IActionResult> Criar([FromBody] CriarCorridasRequest request)
@@ -56,6 +58,34 @@ namespace TransportesApp.Api.Controllers
             {
                 var corrida = await _corridaService.CriarAsync(request, cliente.Id);
                 return Ok(corrida);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        // Corrida avulsa (sem pacote nem benefício do plano) — abre um pagamento no Mercado Pago pelo
+        // valor exato da corrida em vez de debitar de um saldo pré-carregado (a carteira digital foi
+        // removida do app Cliente). Devolve a URL de checkout; o app redireciona o cliente pra lá, e a
+        // corrida só fica visível pro motorista depois que o pagamento for confirmado (ver
+        // PagamentoService.AplicarEfeitoColateralAsync).
+        [Authorize(Roles = "Cliente")]
+        [HttpPost("avulsa")]
+        public async Task<IActionResult> CriarAvulsa([FromBody] CriarCorridasRequest request)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de solicitar corridas." });
+
+            try
+            {
+                var resultado = await _corridaService.IniciarCorridaAvulsaAsync(request, cliente.Id, cliente.Email);
+                return Ok(resultado);
             }
             catch (InvalidOperationException ex)
             {

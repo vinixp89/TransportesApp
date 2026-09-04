@@ -31,15 +31,22 @@
         Executivo
     }
 
-    public enum StatusCorrida 
+    public enum StatusCorrida
     {
-    
+
         Solicitada,
         Confirmada,
         MotoristaACaminho,
         EmAndamento,
         Finalizada,
-        Cancelada
+        Cancelada,
+
+        // Adicionado depois (por isso fica por último, valor 6, e não mexe nos valores já gravados no
+        // banco) — corrida avulsa nasce nesse status (em vez de Solicitada direto) enquanto aguarda a
+        // confirmação do pagamento via Mercado Pago (ver CorridaService.IniciarCorridaAvulsaAsync e
+        // PagamentoService). Só vira Solicitada (visível pros motoristas) depois que o pagamento for
+        // aprovado. Pacote e BeneficioPlano continuam pulando direto pra Solicitada, sem passar por aqui.
+        AguardandoPagamento
 
     }
 
@@ -98,15 +105,15 @@
         Cancelada
     }
 
-    // A quem um Pagamento se refere — hoje AssinaturaPlano e RecargaCarteira de fato "escutam" a
-    // confirmação (ver PagamentoService), mas o modelo já nasce genérico pra Pacotes/Corridas entrarem
-    // no mesmo fluxo de pagamento mais pra frente, sem precisar de uma tabela de pagamento por feature.
-    // RecargaCarteira foi adicionado depois (por isso fica por último, valor 3, e não mexe nos valores
-    // já gravados no banco) — é a recarga de saldo da carteira via Mercado Pago; corridas avulsas
-    // debitam desse saldo na hora (ver CorridaService), sem precisar de pagamento por corrida.
-    // AssinaturaMotoristaExecutivo foi adicionado depois (por isso fica por último, valor 4, e não mexe
-    // nos valores já gravados no banco) — assinatura do motorista pra categoria Executivo (ver
-    // AssinaturaMotoristaExecutivo e AssinaturaMotoristaExecutivoService).
+    // A quem um Pagamento se refere — AssinaturaPlano, RecargaCarteira, AssinaturaMotoristaExecutivo e
+    // (desde a remoção da carteira digital do Cliente) Corrida "escutam" a confirmação (ver
+    // PagamentoService.AplicarEfeitoColateralAsync). RecargaCarteira foi adicionado depois (por isso
+    // fica por último na ordem histórica, valor 3, e não mexe nos valores já gravados no banco) — fica
+    // sem uso pelo app Cliente hoje (a tela de carteira foi removida, ver CorridaService), mas o
+    // backend continua existindo. AssinaturaMotoristaExecutivo foi adicionado depois (valor 4, mesmo
+    // motivo). Corrida (valor 2) já existia reservado aqui desde antes, sem uso — corrida avulsa passou
+    // a usá-lo quando a carteira saiu do fluxo de pagamento de corrida (ver
+    // CorridaService.IniciarCorridaAvulsaAsync).
     public enum TipoReferenciaPagamento
     {
         AssinaturaPlano,

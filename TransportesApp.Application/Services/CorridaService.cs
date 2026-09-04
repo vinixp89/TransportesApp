@@ -14,10 +14,9 @@ namespace TransportesApp.Application.Services
         private readonly IMotoristaRepository _motoristaRepository;
         private readonly IClienteRepository _clienteRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
-        private readonly ICarteiraRepository _carteiraRepository;
-        private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
         private readonly AssinaturaMotoristaExecutivoService _assinaturaMotoristaExecutivoService;
         private readonly CarteiraMotoristaService _carteiraMotoristaService;
+        private readonly PagamentoService _pagamentoService;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
@@ -26,10 +25,9 @@ namespace TransportesApp.Application.Services
             IMotoristaRepository motoristaRepository,
             IClienteRepository clienteRepository,
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
-            ICarteiraRepository carteiraRepository,
-            ITransacaoCarteiraRepository transacaoCarteiraRepository,
             AssinaturaMotoristaExecutivoService assinaturaMotoristaExecutivoService,
-            CarteiraMotoristaService carteiraMotoristaService)
+            CarteiraMotoristaService carteiraMotoristaService,
+            PagamentoService pagamentoService)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
@@ -37,30 +35,29 @@ namespace TransportesApp.Application.Services
             _motoristaRepository = motoristaRepository;
             _clienteRepository = clienteRepository;
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
-            _carteiraRepository = carteiraRepository;
-            _transacaoCarteiraRepository = transacaoCarteiraRepository;
             _assinaturaMotoristaExecutivoService = assinaturaMotoristaExecutivoService;
             _carteiraMotoristaService = carteiraMotoristaService;
+            _pagamentoService = pagamentoService;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
         {
+            // Corrida avulsa não passa mais por aqui — precisa de pagamento via Mercado Pago antes de
+            // existir de verdade (ver IniciarCorridaAvulsaAsync, desde que a carteira digital saiu do
+            // app Cliente). Pacote e BeneficioPlano continuam instantâneos, já foram pagos/liberados antes.
+            if (request.TipoConsumo == TipoConsumo.Avulsa)
+                throw new InvalidOperationException("Corrida avulsa precisa ser iniciada via /Corridas/avulsa (fluxo de pagamento).");
+
             // Categoria Executivo só existe como corrida avulsa por enquanto — pacotes (preço fixado na
             // compra) e o benefício de corrida grátis do plano continuam exclusivos da categoria Normal.
-            if (request.Categoria == CategoriaCorrida.Executivo && request.TipoConsumo != TipoConsumo.Avulsa)
+            if (request.Categoria == CategoriaCorrida.Executivo)
                 throw new InvalidOperationException("A categoria Executivo só está disponível para corridas avulsas por enquanto (sem pacote ou benefício de plano).");
 
             var rota = await CalcularRotaAsync(request.Origem, request.Destino);
-            var preco = rota.Faixa.ObterPreco(request.Categoria);
 
             // Se a corrida é por pacote, valida que o pacote existe, é do cliente, é da faixa certa
             // e ainda tem corridas disponíveis — só depois disso ele é efetivamente consumido.
             var pacote = await ValidarPacoteAsync(request, clienteId, rota.Faixa);
-
-            // Se a corrida é avulsa, valida que a carteira do cliente tem saldo suficiente pro valor
-            // da faixa — só depois disso ela é efetivamente debitada (mesma ideia do pacote: nunca
-            // debita antes de a corrida já estar persistida com sucesso).
-            var carteiraAvulsa = await ValidarSaldoAvulsaAsync(request.TipoConsumo, clienteId, preco);
 
             // Assinatura ativa do cliente (se tiver) — usada tanto pra validar/consumir o benefício de
             // corrida grátis (TipoConsumo.BeneficioPlano) quanto pra registrar que uma corrida paga foi
@@ -89,22 +86,13 @@ namespace TransportesApp.Application.Services
                 await _pacoteCorridasRepository.AtualizarAsync(pacote);
             }
 
-            if (carteiraAvulsa is not null)
-            {
-                carteiraAvulsa.Debitar(preco);
-                await _carteiraRepository.AtualizarAsync(carteiraAvulsa);
-
-                var transacaoDebito = new TransacaoCarteira(
-                    carteiraAvulsa.Id, TipoTransacaoCarteira.Debito, preco, $"Corrida avulsa — faixa {rota.Faixa.Cor} ({request.Categoria})");
-                await _transacaoCarteiraRepository.AdicionarAsync(transacaoDebito);
-            }
-
             if (assinatura is not null)
             {
                 var agora = DateTime.UtcNow;
 
-                // Corrida grátis consome o benefício; qualquer outra (avulsa ou por pacote) conta como
-                // "corrida paga" e libera o benefício pro resto do mês (ver AssinaturaPlano).
+                // Corrida grátis consome o benefício; corrida por pacote conta como "corrida paga" e
+                // libera o benefício pro resto do mês (ver AssinaturaPlano). Avulsa registra isso em
+                // PagamentoService, só quando o pagamento é confirmado — não aqui.
                 if (request.TipoConsumo == TipoConsumo.BeneficioPlano)
                     assinatura.UsarBeneficioGratis(agora);
                 else
@@ -114,6 +102,36 @@ namespace TransportesApp.Application.Services
             }
 
             return MapearParaResponse(corrida, rota.Avisos.Count > 0 ? rota.Avisos : null);
+        }
+
+        // Corrida avulsa: calcula a rota/preço, cria a corrida já (em AguardandoPagamento — ver
+        // Corrida.ctor) e abre um pagamento no Mercado Pago pelo valor exato dela. Diferente do fluxo
+        // antigo (debitar carteira na hora), aqui a corrida só fica visível pros motoristas depois que
+        // o pagamento for aprovado (ver PagamentoService.AplicarEfeitoColateralAsync, caso
+        // TipoReferenciaPagamento.Corrida).
+        public async Task<IniciarCorridaAvulsaResponse> IniciarCorridaAvulsaAsync(CriarCorridasRequest request, Guid clienteId, string emailCliente)
+        {
+            var rota = await CalcularRotaAsync(request.Origem, request.Destino);
+            var preco = rota.Faixa.ObterPreco(request.Categoria);
+
+            var corrida = new Corrida(
+                clienteId: clienteId,
+                origem: rota.Origem,
+                destino: rota.Destino,
+                distanciaEstimadaKm: rota.DistanciaKm,
+                faixa: rota.Faixa,
+                tipoConsumo: TipoConsumo.Avulsa,
+                pacoteCorridasId: null,
+                categoria: request.Categoria
+            );
+
+            await _corridaRepository.AdicionarAsync(corrida);
+
+            var descricao = $"Corrida avulsa — faixa {rota.Faixa.Cor} ({request.Categoria})";
+            var pagamento = await _pagamentoService.IniciarPagamentoAsync(
+                clienteId, TipoReferenciaPagamento.Corrida, corrida.Id, preco, descricao, emailCliente);
+
+            return new IniciarCorridaAvulsaResponse(corrida.Id, pagamento.CheckoutUrl);
         }
 
         // Valida que o cliente pode mesmo usar a corrida grátis do plano: precisa ter assinatura ativa,
@@ -219,24 +237,6 @@ namespace TransportesApp.Application.Services
                 throw new InvalidOperationException("Este pacote não tem corridas disponíveis. Compre um novo pacote ou solicite como corrida avulsa.");
 
             return pacote;
-        }
-
-        // Não debita aqui — só valida e devolve a carteira, pra só debitar depois que a corrida já
-        // tiver sido persistida com sucesso (mesma ideia de ValidarPacoteAsync). Cliente sem carteira
-        // ainda (nunca recarregou) cai no mesmo erro de saldo insuficiente, sem precisar de um caso
-        // especial: saldo implícito é zero.
-        private async Task<Carteira?> ValidarSaldoAvulsaAsync(TipoConsumo tipoConsumo, Guid clienteId, decimal valor)
-        {
-            if (tipoConsumo != TipoConsumo.Avulsa)
-                return null;
-
-            var carteira = await _carteiraRepository.ObterPorClienteIdAsync(clienteId);
-
-            if (carteira is null || carteira.Saldo < valor)
-                throw new InvalidOperationException(
-                    "Saldo insuficiente na carteira para essa corrida avulsa. Recarregue sua carteira antes de pedir.");
-
-            return carteira;
         }
 
         public async Task<CorridaResponse?> ObterPorIdAsync(Guid id)
@@ -508,18 +508,12 @@ namespace TransportesApp.Application.Services
                     }
                     break;
 
+                // Avulsa não tem mais nada pra reverter aqui — o pagamento foi feito de verdade no
+                // Mercado Pago (não um saldo interno nosso), então um estorno de verdade precisaria
+                // chamar a API de reembolso do Mercado Pago, o que ainda não existe no
+                // IGatewayPagamento. Por enquanto, cancelar uma corrida avulsa já paga não devolve o
+                // dinheiro automaticamente — fica como processo manual, igual o saque do motorista.
                 case TipoConsumo.Avulsa:
-                    var carteira = await _carteiraRepository.ObterPorClienteIdAsync(corrida.ClienteId);
-                    if (carteira is not null)
-                    {
-                        var valor = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria);
-                        carteira.Estornar(valor);
-                        await _carteiraRepository.AtualizarAsync(carteira);
-
-                        var transacaoEstorno = new TransacaoCarteira(
-                            carteira.Id, TipoTransacaoCarteira.Estorno, valor, $"Estorno — cancelamento de corrida avulsa ({corrida.FaixaContratada})");
-                        await _transacaoCarteiraRepository.AdicionarAsync(transacaoEstorno);
-                    }
                     break;
 
                 case TipoConsumo.BeneficioPlano:

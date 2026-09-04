@@ -28,6 +28,12 @@ namespace TransportesApp.Application.DTOs
             CategoriaCorrida Categoria = CategoriaCorrida.Normal
         );
 
+    // Resposta de POST /Corridas/avulsa (ver CorridaService.IniciarCorridaAvulsaAsync) — a corrida já
+    // existe (em AguardandoPagamento) mas só fica visível pro motorista depois que o cliente concluir
+    // o checkout em CheckoutUrl. O app usa CorridaId pra levar o cliente pra tela de acompanhamento
+    // assim que voltar do Mercado Pago.
+    public record IniciarCorridaAvulsaResponse(Guid CorridaId, string CheckoutUrl);
+
     public record EnderecoResponse
         (
             string Logradouro,

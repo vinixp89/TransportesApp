@@ -51,10 +51,37 @@ namespace TransportesApp.Domain.Entities
             // exemplo que o Swagger preenche sozinho) — só grava o Id do pacote quando o consumo é por Pacote.
             // Sem isso, um Guid "lixo" nesse campo tenta ser salvo e quebra a FK com PacotesCorridas.
             PacoteCorridasId = tipoConsumo == TipoConsumo.Pacote ? pacoteCorridasId : null;
-            Status = StatusCorrida.Solicitada;
+            // Corrida avulsa precisa de pagamento (Mercado Pago) antes de ficar visível pros
+            // motoristas — nasce em AguardandoPagamento e só vira Solicitada quando o pagamento for
+            // aprovado (ver ConfirmarPagamento, chamado por PagamentoService). Pacote e BeneficioPlano
+            // já foram pagos/liberados antes (compra do pacote, assinatura do plano), então pulam
+            // direto pra Solicitada, como sempre foi.
+            Status = tipoConsumo == TipoConsumo.Avulsa ? StatusCorrida.AguardandoPagamento : StatusCorrida.Solicitada;
             DataSolicitacao = DateTime.UtcNow;
-        
-        
+
+
+        }
+
+        // Chamado por PagamentoService quando o Mercado Pago confirma o pagamento de uma corrida
+        // avulsa — só a partir daqui ela fica visível pros motoristas (ver
+        // CorridaService.ListarPendentesAsync, que filtra por Status == Solicitada).
+        public void ConfirmarPagamento()
+        {
+            if (Status != StatusCorrida.AguardandoPagamento)
+                throw new InvalidOperationException("Essa corrida não está aguardando pagamento.");
+
+            Status = StatusCorrida.Solicitada;
+        }
+
+        // Chamado por PagamentoService quando o Mercado Pago recusa/cancela o pagamento — a corrida
+        // nunca chegou a ficar visível pra ninguém, então não tem nada pra reverter além de marcar
+        // como cancelada.
+        public void CancelarPorPagamentoRecusado()
+        {
+            if (Status != StatusCorrida.AguardandoPagamento)
+                throw new InvalidOperationException("Essa corrida não está aguardando pagamento.");
+
+            Status = StatusCorrida.Cancelada;
         }
 
         public void AtribuirMotorista(Guid motoristaId) 
