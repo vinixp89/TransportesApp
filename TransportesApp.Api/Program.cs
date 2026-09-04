@@ -68,7 +68,13 @@ namespace TransportesApp.Api
                 var certificadoPath = builder.Configuration["Inter:CertificadoPath"];
                 var chavePath = builder.Configuration["Inter:ChavePath"];
 
-                if (!string.IsNullOrWhiteSpace(certificadoPath) && !string.IsNullOrWhiteSpace(chavePath))
+                // Confere se os arquivos existem de verdade, não só se o caminho foi configurado —
+                // o docker-compose.yml sempre define o caminho (fixo), então antes da aprovação do
+                // Inter e do certificado ser colocado no servidor, essa checagem por si só não
+                // bastava: X509Certificate2.CreateFromPemFile derrubava com FileNotFoundException
+                // qualquer requisição que resolvesse InterPagamentoGateway via DI.
+                if (!string.IsNullOrWhiteSpace(certificadoPath) && !string.IsNullOrWhiteSpace(chavePath)
+                    && File.Exists(certificadoPath) && File.Exists(chavePath))
                 {
                     var certificado = X509Certificate2.CreateFromPemFile(certificadoPath, chavePath);
                     handler.ClientCertificates.Add(certificado);
