@@ -1,5 +1,6 @@
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -191,6 +192,26 @@ namespace TransportesApp.Api
             var app = builder.Build();
 
             app.UseForwardedHeaders();
+
+            // Sem isso, qualquer exceção não tratada (ex: o SDK do Mercado Pago rejeitando a
+            // preferência, ou qualquer outra falha inesperada) derruba a conexão com uma resposta 500
+            // sem corpo — o client (app/site) não recebe nenhum JSON, então cai no fallback genérico
+            // "Não foi possível contatar a API" mesmo a API estando no ar. Isso garante que toda
+            // requisição sempre volta com um { mensagem } legível, e loga o erro de verdade pro Admin
+            // investigar.
+            app.UseExceptionHandler(errorApp =>
+            {
+                errorApp.Run(async context =>
+                {
+                    var erro = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+                    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+                    logger.LogError(erro, "Erro não tratado processando {Metodo} {Caminho}", context.Request.Method, context.Request.Path);
+
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new { mensagem = "Ocorreu um erro inesperado no servidor. Tente novamente em instantes." });
+                });
+            });
 
             using (var scope = app.Services.CreateScope())
             {
