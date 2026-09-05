@@ -29,13 +29,18 @@
             if (string.IsNullOrWhiteSpace(cidade))
                 throw new ArgumentException("A cidade é obrigatoria");
 
-            
+            // Coluna do banco é varchar(2) (sigla de UF, ex: "RJ") — o Google Maps normalmente devolve
+            // a sigla certinha, mas já apareceu caso de vir o nome do estado por extenso. Trunca em vez
+            // de deixar o INSERT inteiro quebrar por causa de um campo que é só informativo.
+            var estadoSaneado = string.IsNullOrWhiteSpace(estado)
+                ? ""
+                : estado.Trim()[..Math.Min(2, estado.Trim().Length)];
 
                     Logradouro = logradouro;
                     Numero = numero;
                     Bairro = bairro;
                     Cidade = cidade;
-                    Estado = estado;
+                    Estado = estadoSaneado;
                     Complemento = complemento;
                     Latitude = latitude;
                     Longitude = longitude;
