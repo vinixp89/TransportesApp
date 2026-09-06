@@ -62,12 +62,15 @@ namespace TransportesApp.Domain.Entities
             Pago = pago;
         }
 
-        private PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal precoPago, bool ehPromocional = false)
+        // Sempre quantidade 1 (doação e promoção de lançamento nunca criam pacote com mais de 1
+        // corrida) — sem esse parâmetro aqui, a assinatura ficava idêntica à do construtor público
+        // acima (mesmos tipos: Guid, CorFaixa, int, decimal, bool) e o C# não compilava (CS0111).
+        private PacoteCorridas(Guid clienteId, CorFaixa faixa, decimal precoPago, bool ehPromocional)
         {
             Id = Guid.NewGuid();
             ClienteId = clienteId;
             Faixa = faixa;
-            QuantidadeTotal = quantidade;
+            QuantidadeTotal = 1;
             QuantidadeUsada = 0;
             PrecoPago = precoPago;
             DataCompra = DateTime.UtcNow;
@@ -89,7 +92,7 @@ namespace TransportesApp.Domain.Entities
         public static PacoteCorridas CriarDoacao(Guid clienteId, CorFaixa faixa)
         {
             var precoAvulso = FaixaDistancia.ObterPorCor(faixa).PrecoAvulso;
-            return new PacoteCorridas(clienteId, faixa, quantidade: 1, precoPago: precoAvulso);
+            return new PacoteCorridas(clienteId, faixa, precoPago: precoAvulso, ehPromocional: false);
         }
 
         // Pacote de 1 corrida concedido de graça pela empresa (promoção de lançamento — ver
@@ -97,7 +100,7 @@ namespace TransportesApp.Domain.Entities
         // absorvido pela empresa na hora em que a corrida é aceita por um motorista.
         public static PacoteCorridas CriarPromocional(Guid clienteId, CorFaixa faixa)
         {
-            return new PacoteCorridas(clienteId, faixa, quantidade: 1, precoPago: 0m, ehPromocional: true);
+            return new PacoteCorridas(clienteId, faixa, precoPago: 0m, ehPromocional: true);
         }
 
         // Consome uma corrida do pacote. Chamado quando uma corrida por pacote é criada.
