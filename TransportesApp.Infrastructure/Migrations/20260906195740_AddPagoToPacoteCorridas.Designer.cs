@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TransportesApp.Infrastructure.Data;
@@ -11,9 +12,11 @@ using TransportesApp.Infrastructure.Data;
 namespace TransportesApp.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260906195740_AddPagoToPacoteCorridas")]
+    partial class AddPagoToPacoteCorridas
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -488,11 +491,6 @@ namespace TransportesApp.Infrastructure.Migrations
 
                     b.Property<int>("Faixa")
                         .HasColumnType("integer");
-
-                    b.Property<bool>("Pago")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
 
                     b.Property<decimal>("PrecoPago")
                         .HasColumnType("decimal(10,2)");
