@@ -102,7 +102,7 @@ namespace TransportesApp.Infrastructure.Pagamentos
                 throw new ArgumentException($"Id de pagamento do Mercado Pago inválido: \"{pagamentoGatewayId}\".", nameof(pagamentoGatewayId));
 
             var client = new PaymentClient();
-            await client.RefundAllAsync(id);
+            await client.RefundAsync(id);
         }
 
         public async Task<StatusPagamentoGateway> ConsultarPagamentoAsync(string pagamentoGatewayId)
