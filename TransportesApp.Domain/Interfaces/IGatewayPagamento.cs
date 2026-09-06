@@ -25,6 +25,11 @@ namespace TransportesApp.Domain.Interfaces
         // pagamento usa o MESMO fluxo de sempre (webhook/sincronização manual via
         // ConsultarPagamentoAsync), já que aqui a gente já sai com o Id do pagamento no gateway.
         Task<PagamentoPixCriado> CriarPagamentoPixAsync(SolicitacaoPagamentoPix solicitacao);
+
+        // Estorna (reembolsa) integralmente um pagamento já aprovado — usado quando o cliente cancela
+        // uma corrida avulsa que já foi paga de verdade. pagamentoGatewayId é o Id que O GATEWAY deu
+        // ao pagamento (o mesmo usado em ConsultarPagamentoAsync), não o nosso Pagamento.Id.
+        Task EstornarPagamentoAsync(string pagamentoGatewayId);
     }
 
     public sealed record SolicitacaoPagamento(

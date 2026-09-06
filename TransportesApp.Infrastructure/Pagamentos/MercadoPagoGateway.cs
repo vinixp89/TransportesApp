@@ -93,6 +93,18 @@ namespace TransportesApp.Infrastructure.Pagamentos
             );
         }
 
+        // Estorno integral (sem informar valor = devolve o total, conforme a API do Mercado Pago).
+        public async Task EstornarPagamentoAsync(string pagamentoGatewayId)
+        {
+            GarantirAccessTokenConfigurado();
+
+            if (!long.TryParse(pagamentoGatewayId, out var id))
+                throw new ArgumentException($"Id de pagamento do Mercado Pago inválido: \"{pagamentoGatewayId}\".", nameof(pagamentoGatewayId));
+
+            var client = new PaymentRefundClient();
+            await client.CreateAsync(id);
+        }
+
         public async Task<StatusPagamentoGateway> ConsultarPagamentoAsync(string pagamentoGatewayId)
         {
             GarantirAccessTokenConfigurado();

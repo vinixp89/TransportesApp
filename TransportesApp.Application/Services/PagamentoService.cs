@@ -125,6 +125,22 @@ namespace TransportesApp.Application.Services
             return new PagamentoPixIniciadoResultado(pagamento.Id, pix.PagamentoGatewayId, pix.QrCodeCopiaCola, pix.QrCodeBase64);
         }
 
+        // Estorna o pagamento aprovado de uma referência (hoje só usado pra corrida avulsa cancelada —
+        // ver CorridaService.ReverterConsumoAsync). Não faz nada se não achar pagamento aprovado pra
+        // essa referência (ex: a corrida nunca chegou a ser paga, ou já foi estornada antes).
+        public async Task EstornarPorReferenciaAsync(TipoReferenciaPagamento tipoReferencia, Guid referenciaId)
+        {
+            var pagamento = await _pagamentoRepository.ObterAprovadoPorReferenciaAsync(tipoReferencia, referenciaId);
+
+            if (pagamento is null || pagamento.PagamentoGatewayId is null)
+                return;
+
+            await _gateway.EstornarPagamentoAsync(pagamento.PagamentoGatewayId);
+
+            pagamento.AtualizarStatus(StatusPagamento.Estornado, pagamento.PagamentoGatewayId);
+            await _pagamentoRepository.AtualizarAsync(pagamento);
+        }
+
         // Chamado tanto pelo webhook quanto pela sincronização manual (ver PagamentosController) — o
         // parâmetro é sempre o Id do PAGAMENTO dentro do Mercado Pago (não o nosso Pagamento.Id). Nunca
         // confia em status vindo de fora: sempre busca de volta na API do gateway antes de aplicar

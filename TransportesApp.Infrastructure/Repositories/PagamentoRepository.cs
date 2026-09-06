@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TransportesApp.Domain.Entities;
+using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
 
@@ -17,6 +18,14 @@ namespace TransportesApp.Infrastructure.Repositories
         public async Task<Pagamento?> ObterPorIdAsync(Guid id)
         {
             return await _context.Pagamentos.FirstOrDefaultAsync(p => p.Id == id);
+        }
+
+        public async Task<Pagamento?> ObterAprovadoPorReferenciaAsync(TipoReferenciaPagamento tipoReferencia, Guid referenciaId)
+        {
+            return await _context.Pagamentos
+                .Where(p => p.TipoReferencia == tipoReferencia && p.ReferenciaId == referenciaId && p.Status == StatusPagamento.Aprovado)
+                .OrderByDescending(p => p.DataCriacao)
+                .FirstOrDefaultAsync();
         }
 
         public async Task AdicionarAsync(Pagamento pagamento)

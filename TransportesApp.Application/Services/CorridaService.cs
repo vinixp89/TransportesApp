@@ -1,4 +1,5 @@
-﻿using TransportesApp.Application.DTOs;
+﻿using Microsoft.Extensions.Logging;
+using TransportesApp.Application.DTOs;
 using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
@@ -17,6 +18,7 @@ namespace TransportesApp.Application.Services
         private readonly AssinaturaMotoristaExecutivoService _assinaturaMotoristaExecutivoService;
         private readonly CarteiraMotoristaService _carteiraMotoristaService;
         private readonly PagamentoService _pagamentoService;
+        private readonly ILogger<CorridaService> _logger;
 
         public CorridaService(
             ICorridaRepository corridaRepository,
@@ -27,7 +29,8 @@ namespace TransportesApp.Application.Services
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
             AssinaturaMotoristaExecutivoService assinaturaMotoristaExecutivoService,
             CarteiraMotoristaService carteiraMotoristaService,
-            PagamentoService pagamentoService)
+            PagamentoService pagamentoService,
+            ILogger<CorridaService> logger)
         {
             _corridaRepository = corridaRepository;
             _mapsService = mapsService;
@@ -38,6 +41,7 @@ namespace TransportesApp.Application.Services
             _assinaturaMotoristaExecutivoService = assinaturaMotoristaExecutivoService;
             _carteiraMotoristaService = carteiraMotoristaService;
             _pagamentoService = pagamentoService;
+            _logger = logger;
         }
 
         public async Task<CorridaResponse> CriarAsync(CriarCorridasRequest request, Guid clienteId)
@@ -537,12 +541,19 @@ namespace TransportesApp.Application.Services
                     }
                     break;
 
-                // Avulsa não tem mais nada pra reverter aqui — o pagamento foi feito de verdade no
-                // Mercado Pago (não um saldo interno nosso), então um estorno de verdade precisaria
-                // chamar a API de reembolso do Mercado Pago, o que ainda não existe no
-                // IGatewayPagamento. Por enquanto, cancelar uma corrida avulsa já paga não devolve o
-                // dinheiro automaticamente — fica como processo manual, igual o saque do motorista.
+                // Avulsa foi paga de verdade no Mercado Pago (não um saldo interno nosso) — cancelar
+                // estorna o pagamento aprovado pra essa corrida. Não trava o cancelamento em si se o
+                // estorno falhar (ex: prazo de estorno do Pix já passou) — a corrida cancela de
+                // qualquer forma, só fica sem o dinheiro devolvido automaticamente nesse caso raro.
                 case TipoConsumo.Avulsa:
+                    try
+                    {
+                        await _pagamentoService.EstornarPorReferenciaAsync(TipoReferenciaPagamento.Corrida, corrida.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Falha ao estornar pagamento da corrida {CorridaId} cancelada", corrida.Id);
+                    }
                     break;
 
                 case TipoConsumo.BeneficioPlano:
