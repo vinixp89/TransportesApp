@@ -1,3 +1,7 @@
 api.vainaboamobilidade.com.br {
+	log {
+		output stdout
+		format json
+	}
 	reverse_proxy api:8080
 }
