@@ -80,12 +80,7 @@ namespace TransportesApp.Infrastructure.Pagamentos
             };
 
             var client = new PaymentClient();
-            // Mesmo padrão de idempotência recomendado pelo Mercado Pago pra criação de pagamento —
-            // sem isso, um retry de rede do nosso lado poderia criar 2 cobranças Pix pra mesma corrida.
-            var requestOptions = new MPRequestOptions();
-            requestOptions.CustomHeaders.Add("X-Idempotency-Key", solicitacao.ExternalReference);
-
-            var pagamento = await client.CreateAsync(request, requestOptions);
+            var pagamento = await client.CreateAsync(request);
 
             var dadosPix = pagamento.PointOfInteraction?.TransactionData
                 ?? throw new InvalidOperationException("Mercado Pago não devolveu os dados do QR Code Pix.");
