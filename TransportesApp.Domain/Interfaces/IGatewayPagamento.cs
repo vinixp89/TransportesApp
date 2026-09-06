@@ -18,6 +18,13 @@ namespace TransportesApp.Domain.Interfaces
         // a ele (não é o Pagamento.Id nosso) — usado pelo webhook/sincronização manual. Nunca confia
         // no corpo da notificação em si, sempre busca de volta na API do gateway.
         Task<StatusPagamentoGateway> ConsultarPagamentoAsync(string pagamentoGatewayId);
+
+        // Cria um pagamento Pix direto (Checkout API, sem redirecionar pra nenhuma página do
+        // gateway) e devolve o QR Code pronto pra mostrar na hora — usado quando o Checkout Pro
+        // (CriarPreferenciaAsync) não oferece Pix como opção pra determinada conta. A confirmação do
+        // pagamento usa o MESMO fluxo de sempre (webhook/sincronização manual via
+        // ConsultarPagamentoAsync), já que aqui a gente já sai com o Id do pagamento no gateway.
+        Task<PagamentoPixCriado> CriarPagamentoPixAsync(SolicitacaoPagamentoPix solicitacao);
     }
 
     public sealed record SolicitacaoPagamento(
@@ -46,5 +53,27 @@ namespace TransportesApp.Domain.Interfaces
         StatusPagamento Status,
         string? ExternalReference,
         decimal? Valor
+    );
+
+    public sealed record SolicitacaoPagamentoPix(
+        string ExternalReference,
+        string Descricao,
+        decimal Valor,
+        string EmailPagador,
+        // Pix pelo Mercado Pago exige o CPF de quem paga (identification.number) — sem isso a API
+        // recusa a criação do pagamento.
+        string CpfPagador,
+        string? UrlNotificacao
+    );
+
+    public sealed record PagamentoPixCriado(
+        string PagamentoGatewayId,
+        StatusPagamento Status,
+        // "Copia e cola" (EMV do Pix) — o que o app mostra pra copiar, e também o que dá pra
+        // transformar num QR Code do lado do cliente se quiser.
+        string QrCodeCopiaCola,
+        // Imagem do QR Code já pronta, em base64 (PNG) — o Mercado Pago gera ela pronta, não precisa
+        // de biblioteca de QR Code nenhuma no nosso lado.
+        string QrCodeBase64
     );
 }

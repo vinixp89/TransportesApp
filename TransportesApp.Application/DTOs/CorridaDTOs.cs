@@ -34,6 +34,11 @@ namespace TransportesApp.Application.DTOs
     // assim que voltar do Mercado Pago.
     public record IniciarCorridaAvulsaResponse(Guid CorridaId, string CheckoutUrl);
 
+    // Resposta de POST /Corridas/avulsa-pix — mesma ideia da avulsa comum, só que com o QR Code Pix
+    // pronto pra mostrar na hora em vez de uma URL de checkout pra redirecionar. O app usa
+    // PagamentoGatewayId pra fazer polling em /Pagamentos/sincronizar/{id} até o pagamento confirmar.
+    public record IniciarCorridaAvulsaPixResponse(Guid CorridaId, string PagamentoGatewayId, string QrCodeCopiaCola, string QrCodeBase64);
+
     public record EnderecoResponse
         (
             string Logradouro,

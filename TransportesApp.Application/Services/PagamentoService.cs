@@ -88,6 +88,43 @@ namespace TransportesApp.Application.Services
             return new PagamentoIniciadoResultado(pagamento.Id, preferencia.UrlCheckout);
         }
 
+        // Mesma ideia do IniciarPagamentoAsync acima, só que pelo Checkout API direto (Pix na hora,
+        // sem redirecionar pra nenhuma página do gateway) — ver
+        // IGatewayPagamento.CriarPagamentoPixAsync. Como aqui já sai um pagamento de verdade (não uma
+        // preference), já grava o PagamentoGatewayId e o status inicial (normalmente Pendente,
+        // aguardando o cliente pagar o QR Code) direto na criação.
+        public async Task<PagamentoPixIniciadoResultado> IniciarPagamentoPixAsync(
+            Guid clienteId,
+            TipoReferenciaPagamento tipoReferencia,
+            Guid referenciaId,
+            decimal valor,
+            string descricao,
+            string emailPagador,
+            string cpfPagador)
+        {
+            var pagamento = new Pagamento(clienteId, tipoReferencia, referenciaId, valor, descricao);
+            await _pagamentoRepository.AdicionarAsync(pagamento);
+
+            var urlNotificacaoBase = _configuration["MercadoPago:UrlNotificacao"];
+            var urlNotificacao = string.IsNullOrWhiteSpace(urlNotificacaoBase)
+                ? null
+                : $"{urlNotificacaoBase.TrimEnd('/')}/api/Pagamentos/webhook";
+
+            var pix = await _gateway.CriarPagamentoPixAsync(new SolicitacaoPagamentoPix(
+                ExternalReference: pagamento.Id.ToString(),
+                Descricao: descricao,
+                Valor: valor,
+                EmailPagador: emailPagador,
+                CpfPagador: cpfPagador,
+                UrlNotificacao: urlNotificacao
+            ));
+
+            pagamento.AtualizarStatus(pix.Status, pix.PagamentoGatewayId);
+            await _pagamentoRepository.AtualizarAsync(pagamento);
+
+            return new PagamentoPixIniciadoResultado(pagamento.Id, pix.PagamentoGatewayId, pix.QrCodeCopiaCola, pix.QrCodeBase64);
+        }
+
         // Chamado tanto pelo webhook quanto pela sincronização manual (ver PagamentosController) — o
         // parâmetro é sempre o Id do PAGAMENTO dentro do Mercado Pago (não o nosso Pagamento.Id). Nunca
         // confia em status vindo de fora: sempre busca de volta na API do gateway antes de aplicar

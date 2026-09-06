@@ -1,3 +1,4 @@
+using MercadoPago.Client.Common;
 using MercadoPago.Client.Payment;
 using MercadoPago.Client.Preference;
 using MercadoPago.Config;
@@ -50,6 +51,51 @@ namespace TransportesApp.Infrastructure.Pagamentos
             var preferencia = await client.CreateAsync(request);
 
             return new PreferenciaCriada(preferencia.Id, preferencia.InitPoint);
+        }
+
+        // Checkout API direto (POST /v1/payments com payment_method_id "pix"), sem Preference nem
+        // redirecionamento — nossa conta não tem Pix disponível no Checkout Pro hospedado (confirmado
+        // com o suporte do Mercado Pago), mas o Pix funciona normalmente por aqui, na mesma conta.
+        public async Task<PagamentoPixCriado> CriarPagamentoPixAsync(SolicitacaoPagamentoPix solicitacao)
+        {
+            GarantirAccessTokenConfigurado();
+
+            var request = new PaymentCreateRequest
+            {
+                TransactionAmount = solicitacao.Valor,
+                Description = solicitacao.Descricao,
+                PaymentMethodId = "pix",
+                Payer = new PaymentPayerRequest
+                {
+                    Email = solicitacao.EmailPagador,
+                    Identification = new IdentificationRequest
+                    {
+                        Type = "CPF",
+                        Number = solicitacao.CpfPagador,
+                    },
+                },
+                ExternalReference = solicitacao.ExternalReference,
+                NotificationUrl = string.IsNullOrWhiteSpace(solicitacao.UrlNotificacao) ? null : solicitacao.UrlNotificacao,
+                StatementDescriptor = "VAINABOA",
+            };
+
+            var client = new PaymentClient();
+            // Mesmo padrão de idempotência recomendado pelo Mercado Pago pra criação de pagamento —
+            // sem isso, um retry de rede do nosso lado poderia criar 2 cobranças Pix pra mesma corrida.
+            var requestOptions = new MPRequestOptions();
+            requestOptions.CustomHeaders.Add("X-Idempotency-Key", solicitacao.ExternalReference);
+
+            var pagamento = await client.CreateAsync(request, requestOptions);
+
+            var dadosPix = pagamento.PointOfInteraction?.TransactionData
+                ?? throw new InvalidOperationException("Mercado Pago não devolveu os dados do QR Code Pix.");
+
+            return new PagamentoPixCriado(
+                pagamento.Id!.Value.ToString(),
+                MapearStatus(pagamento.Status),
+                dadosPix.QrCode!,
+                dadosPix.QrCodeBase64!
+            );
         }
 
         public async Task<StatusPagamentoGateway> ConsultarPagamentoAsync(string pagamentoGatewayId)

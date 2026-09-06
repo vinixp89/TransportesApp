@@ -134,6 +134,35 @@ namespace TransportesApp.Application.Services
             return new IniciarCorridaAvulsaResponse(corrida.Id, pagamento.CheckoutUrl);
         }
 
+        // Mesma ideia do IniciarCorridaAvulsaAsync acima, só que pagando via Pix direto (Checkout API,
+        // sem redirecionar pro Mercado Pago) — ver PagamentoService.IniciarPagamentoPixAsync. cpfCliente
+        // é exigido pelo Mercado Pago pra criar um pagamento Pix (identification.number).
+        public async Task<IniciarCorridaAvulsaPixResponse> IniciarCorridaAvulsaPixAsync(
+            CriarCorridasRequest request, Guid clienteId, string emailCliente, string cpfCliente)
+        {
+            var rota = await CalcularRotaAsync(request.Origem, request.Destino);
+            var preco = rota.Faixa.ObterPreco(request.Categoria);
+
+            var corrida = new Corrida(
+                clienteId: clienteId,
+                origem: rota.Origem,
+                destino: rota.Destino,
+                distanciaEstimadaKm: rota.DistanciaKm,
+                faixa: rota.Faixa,
+                tipoConsumo: TipoConsumo.Avulsa,
+                pacoteCorridasId: null,
+                categoria: request.Categoria
+            );
+
+            await _corridaRepository.AdicionarAsync(corrida);
+
+            var descricao = $"Corrida avulsa — faixa {rota.Faixa.Cor} ({request.Categoria})";
+            var pix = await _pagamentoService.IniciarPagamentoPixAsync(
+                clienteId, TipoReferenciaPagamento.Corrida, corrida.Id, preco, descricao, emailCliente, cpfCliente);
+
+            return new IniciarCorridaAvulsaPixResponse(corrida.Id, pix.PagamentoGatewayId, pix.QrCodeCopiaCola, pix.QrCodeBase64);
+        }
+
         // Valida que o cliente pode mesmo usar a corrida grátis do plano: precisa ter assinatura ativa,
         // o plano precisa ter esse benefício, a corrida solicitada precisa ser exatamente da cor que o
         // plano libera de graça, e o benefício precisa estar disponível (já fez 1 corrida paga no mês e

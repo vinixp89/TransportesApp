@@ -93,6 +93,31 @@ namespace TransportesApp.Api.Controllers
             }
         }
 
+        // Mesma corrida avulsa de cima, só que pagando via Pix direto (QR Code na hora) em vez de
+        // redirecionar pro checkout do Mercado Pago — ver CorridaService.IniciarCorridaAvulsaPixAsync.
+        [Authorize(Roles = "Cliente")]
+        [HttpPost("avulsa-pix")]
+        public async Task<IActionResult> CriarAvulsaPix([FromBody] CriarCorridasRequest request)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de solicitar corridas." });
+
+            try
+            {
+                var resultado = await _corridaService.IniciarCorridaAvulsaPixAsync(request, cliente.Id, cliente.Email, cliente.Cpf);
+                return Ok(resultado);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
         [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Listar()
