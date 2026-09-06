@@ -1,5 +1,6 @@
 using TransportesApp.Application.DTOs;
 using TransportesApp.Domain.Entities;
+using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Domain.ValueObjects;
 
@@ -9,13 +10,16 @@ namespace TransportesApp.Application.Services
     {
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
+        private readonly PagamentoService _pagamentoService;
 
         public PacoteCorridasService(
             IPacoteCorridasRepository pacoteCorridasRepository,
-            IAssinaturaPlanoRepository assinaturaPlanoRepository)
+            IAssinaturaPlanoRepository assinaturaPlanoRepository,
+            PagamentoService pagamentoService)
         {
             _pacoteCorridasRepository = pacoteCorridasRepository;
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
+            _pagamentoService = pagamentoService;
         }
 
         // Não depende do repositório — é só a tabela de preços do domínio, montada pra exibição.
@@ -30,7 +34,33 @@ namespace TransportesApp.Application.Services
             ));
         }
 
-        public async Task<PacoteCorridasResponse> CriarAsync(CriarPacoteCorridasRequest request, Guid clienteId)
+        // Cria o pacote (ainda Pago=false) e abre o checkout do Mercado Pago (cartão/boleto) pelo
+        // valor exato — o pacote só fica utilizável de verdade quando o pagamento confirmar (ver
+        // PagamentoService.AplicarEfeitoColateralAsync).
+        public async Task<IniciarCompraPacoteResponse> IniciarCompraAsync(CriarPacoteCorridasRequest request, Guid clienteId, string emailCliente)
+        {
+            var pacote = await CriarPendentePagamentoAsync(request, clienteId);
+
+            var descricao = $"Pacote de {pacote.QuantidadeTotal} corridas — faixa {pacote.Faixa}";
+            var pagamento = await _pagamentoService.IniciarPagamentoAsync(
+                clienteId, TipoReferenciaPagamento.PacoteCorridas, pacote.Id, pacote.PrecoPago, descricao, emailCliente);
+
+            return new IniciarCompraPacoteResponse(pacote.Id, pagamento.CheckoutUrl);
+        }
+
+        // Mesma ideia do IniciarCompraAsync, só que pagando via Pix direto (QR Code na hora).
+        public async Task<IniciarCompraPacotePixResponse> IniciarCompraPixAsync(CriarPacoteCorridasRequest request, Guid clienteId, string emailCliente, string cpfCliente)
+        {
+            var pacote = await CriarPendentePagamentoAsync(request, clienteId);
+
+            var descricao = $"Pacote de {pacote.QuantidadeTotal} corridas — faixa {pacote.Faixa}";
+            var pix = await _pagamentoService.IniciarPagamentoPixAsync(
+                clienteId, TipoReferenciaPagamento.PacoteCorridas, pacote.Id, pacote.PrecoPago, descricao, emailCliente, cpfCliente);
+
+            return new IniciarCompraPacotePixResponse(pacote.Id, pix.PagamentoGatewayId, pix.QrCodeCopiaCola, pix.QrCodeBase64);
+        }
+
+        private async Task<PacoteCorridas> CriarPendentePagamentoAsync(CriarPacoteCorridasRequest request, Guid clienteId)
         {
             var percentualDesconto = await ObterPercentualDescontoAsync(clienteId);
 
@@ -38,7 +68,7 @@ namespace TransportesApp.Application.Services
 
             await _pacoteCorridasRepository.AdicionarAsync(pacote);
 
-            return MapearParaResponse(pacote);
+            return pacote;
         }
 
         // Desconto do plano de assinatura ativo do cliente, se tiver (ver PlanoAssinatura.PercentualDescontoPacotes).
@@ -64,7 +94,9 @@ namespace TransportesApp.Application.Services
         {
             var pacotes = await _pacoteCorridasRepository.ListarPorClienteAsync(clienteId);
 
-            return pacotes.Select(MapearParaResponse);
+            // Pacote com Pago=false ainda está esperando confirmação do Mercado Pago — não existe
+            // pro cliente até lá (ver PacoteCorridas.TemCorridaDisponivel).
+            return pacotes.Where(p => p.Pago).Select(MapearParaResponse);
         }
 
         private static PacoteCorridasResponse MapearParaResponse(PacoteCorridas pacote)

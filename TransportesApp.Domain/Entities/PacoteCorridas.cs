@@ -21,16 +21,25 @@ namespace TransportesApp.Domain.Entities
         // ela pra outra conta e converter o presente em algo que não era a intenção da promoção.
         public bool EhPromocional { get; private set; }
 
+        // Compra paga via Mercado Pago (ver PacoteCorridasService.IniciarCompraAsync /
+        // IniciarCompraPixAsync) começa com Pago=false — o pacote só fica utilizável de verdade
+        // depois que o pagamento confirma (ver PagamentoService.AplicarEfeitoColateralAsync). Doação
+        // e promoção de lançamento nascem já pagas (o custo já foi coberto em outro lugar: a carteira
+        // de quem doou, ou a empresa no caso da promoção).
+        public bool Pago { get; private set; }
+
         public int QuantidadeRestante => QuantidadeTotal - QuantidadeUsada;
-        public bool TemCorridaDisponivel => QuantidadeRestante > 0;
+        public bool TemCorridaDisponivel => Pago && QuantidadeRestante > 0;
 
         protected PacoteCorridas() { }
 
         // percentualDesconto vem do plano de assinatura ativo do cliente, se tiver (ver
-        // PlanoAssinatura.PercentualDescontoPacotes e PacoteCorridasService.CriarAsync) — 0 pra quem
-        // não tem plano com desconto. Aplicado aqui, não no controller/service, pra garantir que o
-        // preço registrado sempre reflita exatamente o que foi cobrado.
-        public PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal percentualDesconto = 0m)
+        // PlanoAssinatura.PercentualDescontoPacotes e PacoteCorridasService) — 0 pra quem não tem
+        // plano com desconto. Aplicado aqui, não no controller/service, pra garantir que o preço
+        // registrado sempre reflita exatamente o que foi cobrado. pago=false pra compra via
+        // Mercado Pago (ver ConfirmarPagamento) — nunca deve ficar exposto num endpoint que cria o
+        // pacote já utilizável sem cobrar nada.
+        public PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal percentualDesconto = 0m, bool pago = false)
         {
             if (!FaixaDistancia.TamanhosPacoteDisponiveis.Contains(quantidade))
                 throw new ArgumentException(
@@ -50,6 +59,7 @@ namespace TransportesApp.Domain.Entities
             // cliente mudarem depois, não afeta pacotes já comprados.
             PrecoPago = Math.Round(faixaDistancia.ObterPrecoPacote(quantidade) * (1 - percentualDesconto), 2, MidpointRounding.AwayFromZero);
             DataCompra = DateTime.UtcNow;
+            Pago = pago;
         }
 
         private PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal precoPago, bool ehPromocional = false)
@@ -62,6 +72,15 @@ namespace TransportesApp.Domain.Entities
             PrecoPago = precoPago;
             DataCompra = DateTime.UtcNow;
             EhPromocional = ehPromocional;
+            Pago = true;
+        }
+
+        // Chamado quando o Mercado Pago confirma o pagamento da compra (ver
+        // PagamentoService.AplicarEfeitoColateralAsync) — só a partir daqui o pacote passa a valer
+        // pra usar em corridas (ver TemCorridaDisponivel).
+        public void ConfirmarPagamento()
+        {
+            Pago = true;
         }
 
         // Pacote de 1 corrida criado por uma doação (ver DoacaoService.DoarAsync) — sempre quantidade 1,

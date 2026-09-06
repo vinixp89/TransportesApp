@@ -22,6 +22,7 @@ namespace TransportesApp.Application.Services
         private readonly ICarteiraRepository _carteiraRepository;
         private readonly ITransacaoCarteiraRepository _transacaoCarteiraRepository;
         private readonly ICorridaRepository _corridaRepository;
+        private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
         private readonly IGatewayPagamento _gateway;
         private readonly IConfiguration _configuration;
 
@@ -32,6 +33,7 @@ namespace TransportesApp.Application.Services
             ICarteiraRepository carteiraRepository,
             ITransacaoCarteiraRepository transacaoCarteiraRepository,
             ICorridaRepository corridaRepository,
+            IPacoteCorridasRepository pacoteCorridasRepository,
             IGatewayPagamento gateway,
             IConfiguration configuration)
         {
@@ -41,6 +43,7 @@ namespace TransportesApp.Application.Services
             _carteiraRepository = carteiraRepository;
             _transacaoCarteiraRepository = transacaoCarteiraRepository;
             _corridaRepository = corridaRepository;
+            _pacoteCorridasRepository = pacoteCorridasRepository;
             _gateway = gateway;
             _configuration = configuration;
         }
@@ -199,6 +202,12 @@ namespace TransportesApp.Application.Services
                 return;
             }
 
+            if (pagamento.TipoReferencia == TipoReferenciaPagamento.PacoteCorridas)
+            {
+                await AplicarEfeitoPacoteCorridasAsync(pagamento);
+                return;
+            }
+
             if (pagamento.TipoReferencia != TipoReferenciaPagamento.AssinaturaPlano)
                 return;
 
@@ -276,6 +285,24 @@ namespace TransportesApp.Application.Services
                 await _corridaRepository.AtualizarAsync(corrida);
             }
             // EmProcessamento/Estornado não mexem na corrida aqui, mesmo motivo do branch AssinaturaPlano.
+        }
+
+        // Pacote de corridas comprado (ver PacoteCorridasService.IniciarCompraAsync/IniciarCompraPixAsync)
+        // nasce com Pago=false — só passa a valer pra usar em corridas quando o pagamento aprova.
+        // Se recusar/cancelar, não tem o que desfazer: o pacote nunca chegou a ficar utilizável, então
+        // fica só como um registro morto (Pago=false pra sempre), invisível pro cliente.
+        private async Task AplicarEfeitoPacoteCorridasAsync(Pagamento pagamento)
+        {
+            if (pagamento.Status != StatusPagamento.Aprovado)
+                return;
+
+            var pacote = await _pacoteCorridasRepository.ObterPorIdAsync(pagamento.ReferenciaId);
+
+            if (pacote is null || pacote.Pago)
+                return;
+
+            pacote.ConfirmarPagamento();
+            await _pacoteCorridasRepository.AtualizarAsync(pacote);
         }
 
         // Credita o saldo da carteira só quando o pagamento é aprovado — Recusado/Cancelado nunca

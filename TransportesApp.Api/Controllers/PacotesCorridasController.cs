@@ -30,9 +30,11 @@ namespace TransportesApp.Api.Controllers
             return Ok(catalogo);
         }
 
+        // Abre o checkout do Mercado Pago (cartão/boleto) pelo valor do pacote — ele só fica
+        // utilizável depois que o pagamento confirmar (ver PagamentoService.AplicarEfeitoColateralAsync).
         [Authorize(Roles = "Cliente")]
-        [HttpPost]
-        public async Task<IActionResult> Criar([FromBody] CriarPacoteCorridasRequest request)
+        [HttpPost("comprar")]
+        public async Task<IActionResult> Comprar([FromBody] CriarPacoteCorridasRequest request)
         {
             var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? User.FindFirstValue("sub")!);
@@ -44,8 +46,32 @@ namespace TransportesApp.Api.Controllers
 
             try
             {
-                var pacote = await _pacoteCorridasService.CriarAsync(request, cliente.Id);
-                return Ok(pacote);
+                var resultado = await _pacoteCorridasService.IniciarCompraAsync(request, cliente.Id, cliente.Email);
+                return Ok(resultado);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        // Mesma compra de cima, só que via Pix direto (QR Code na hora).
+        [Authorize(Roles = "Cliente")]
+        [HttpPost("comprar-pix")]
+        public async Task<IActionResult> ComprarPix([FromBody] CriarPacoteCorridasRequest request)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de comprar um pacote." });
+
+            try
+            {
+                var resultado = await _pacoteCorridasService.IniciarCompraPixAsync(request, cliente.Id, cliente.Email, cliente.Cpf);
+                return Ok(resultado);
             }
             catch (ArgumentException ex)
             {

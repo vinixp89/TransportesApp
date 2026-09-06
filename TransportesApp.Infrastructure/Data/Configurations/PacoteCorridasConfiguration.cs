@@ -35,6 +35,12 @@ namespace TransportesApp.Infrastructure.Data.Configurations
                 .IsRequired()
                 .HasDefaultValue(false);
 
+            // Default true protege os pacotes já comprados antes dessa coluna existir — só a
+            // partir de agora que novas compras nascem com false até o pagamento confirmar.
+            builder.Property(p => p.Pago)
+                .IsRequired()
+                .HasDefaultValue(true);
+
             builder.HasOne<Cliente>()
                 .WithMany()
                 .HasForeignKey(p => p.ClienteId)
