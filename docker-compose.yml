@@ -47,6 +47,7 @@ services:
       Inter__CertificadoPath: /app/inter-certs/certificado.crt
       Inter__ChavePath: /app/inter-certs/chave.key
       Inter__ContaCorrente: ${INTER_CONTA_CORRENTE}
+      Features__CarteiraMotoristaLiberada: ${FEATURE_CARTEIRA_MOTORISTA_LIBERADA}
     # Só interna à rede do Docker agora que o Caddy (HTTPS) é a porta de entrada pública — o
     # tráfego chega em api:8080 via reverse_proxy do Caddy, não precisa mais expor direto.
     expose:
