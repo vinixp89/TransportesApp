@@ -10,6 +10,10 @@
 # arquivos separados — nunca comitar, ver InterPagamentoGateway).
 /inter-certs/
 
+# Build estático do fronttransportesapp, gerado no servidor na hora do deploy e montado no Caddy
+# (ver docker-compose.yml/Caddyfile) — nunca comitar, é output de build, não código-fonte.
+/frontend-dist/
+
 # User-specific files
 *.rsuser
 *.suo

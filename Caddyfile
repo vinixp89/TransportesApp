@@ -5,3 +5,14 @@ api.vainaboamobilidade.com.br {
 	}
 	reverse_proxy api:8080
 }
+
+# Site (React/Vite) servido como arquivos estáticos — o build (`npm run build`) roda fora do
+# Caddy, o resultado (pasta dist/) fica montado em /srv/frontend (ver docker-compose.yml). SPA:
+# qualquer rota que não seja um arquivo real cai no index.html, quem decide o que mostrar é o
+# React Router do lado do cliente.
+vainaboamobilidade.com.br, www.vainaboamobilidade.com.br {
+	encode gzip
+	root * /srv/frontend
+	try_files {path} /index.html
+	file_server
+}
