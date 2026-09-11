@@ -229,6 +229,40 @@ namespace TransportesApp.Api.Controllers
             if (!excluiu)
                 return BadRequest(new { mensagem = "Cadastro de cliente não encontrado pra essa conta." });
 
+            await AnonimizarLoginAsync(usuario);
+
+            return NoContent();
+        }
+
+        // Mesma ideia do ExcluirConta acima, só que pro lado do motorista (ver Motorista.Excluir) —
+        // ver tela "Configurações da conta" no app Motorista.
+        [HttpPost("excluir-conta-motorista")]
+        [Authorize(Roles = "Motorista")]
+        public async Task<IActionResult> ExcluirContaMotorista()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var usuario = await _userManager.FindByIdAsync(usuarioId.ToString());
+
+            if (usuario is null)
+                return NotFound();
+
+            var excluiu = await _motoristaService.ExcluirContaAsync(usuarioId);
+
+            if (!excluiu)
+                return BadRequest(new { mensagem = "Cadastro de motorista não encontrado pra essa conta." });
+
+            await AnonimizarLoginAsync(usuario);
+
+            return NoContent();
+        }
+
+        // Troca o e-mail/username por um valor anônimo e bloqueia o login definitivamente — comum às
+        // duas exclusões de conta acima, já que o Identity (AspNetUsers) não sabe se é Cliente ou
+        // Motorista.
+        private async Task AnonimizarLoginAsync(Usuario usuario)
+        {
             var emailAnonimo = $"excluido-{usuario.Id:N}@vainaboamobilidade.com.br";
             usuario.Email = emailAnonimo;
             usuario.UserName = emailAnonimo;
@@ -236,8 +270,6 @@ namespace TransportesApp.Api.Controllers
             await _userManager.UpdateAsync(usuario);
             await _userManager.SetLockoutEnabledAsync(usuario, true);
             await _userManager.SetLockoutEndDateAsync(usuario, DateTimeOffset.MaxValue);
-
-            return NoContent();
         }
 
         private async Task<AuthResponse> GerarTokenAsync(Usuario usuario)

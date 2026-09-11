@@ -119,6 +119,22 @@ namespace TransportesApp.Domain.Entities
         // Categoria Executivo exige veículo com até 3 anos de fabricação (contando a partir do ano atual).
         public bool VeiculoElegivelParaExecutivo() => AnoVeiculo is not null && DateTime.UtcNow.Year - AnoVeiculo.Value <= 3;
 
+        // Exclusão de conta (ver AuthController.ExcluirContaMotorista) — mesmo padrão do
+        // Cliente.Excluir: não é DELETE de verdade (Corridas/TransacaoCarteiraMotorista têm FK
+        // Restrict pra Motorista, histórico financeiro precisa ser preservado por obrigação legal),
+        // então só anonimiza os dados pessoais e as fotos de documento aqui — quem chama isso
+        // também bloqueia o login da conta (ver UserManager no AuthController).
+        public void Excluir()
+        {
+            CNH = "REMOVIDA";
+            Cpf = "00000000000";
+            PlacaVeiculo = "Removida";
+            ModeloVeiculo = "Removido";
+            Endereco = new Endereco("Removido", "0", "Removido", "Removido", "SP", 0, 0);
+            FotoSelfieUrl = null;
+            FotoVeiculoUrl = null;
+            FotoPlacaUrl = null;
+        }
 
 
 

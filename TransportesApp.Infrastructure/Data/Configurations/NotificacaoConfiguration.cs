@@ -12,9 +12,6 @@ namespace TransportesApp.Infrastructure.Data.Configurations
 
             builder.HasKey(n => n.Id);
 
-            builder.Property(n => n.ClienteId)
-                .IsRequired();
-
             builder.Property(n => n.Titulo)
                 .IsRequired()
                 .HasMaxLength(150);
@@ -32,12 +29,20 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(n => n.DataCriacao)
                 .IsRequired();
 
-            // Caixa de entrada lista por cliente, mais recentes primeiro — índice cobre os dois.
+            // Caixa de entrada lista por cliente/motorista, mais recentes primeiro — índices cobrem
+            // os dois. ClienteId e MotoristaId são nullable de propósito (ver Notificacao.ParaCliente/
+            // ParaMotorista) — cada notificação pertence a exatamente um dos dois, nunca aos dois.
             builder.HasIndex(n => new { n.ClienteId, n.DataCriacao });
+            builder.HasIndex(n => new { n.MotoristaId, n.DataCriacao });
 
             builder.HasOne<Cliente>()
                 .WithMany()
                 .HasForeignKey(n => n.ClienteId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne<Motorista>()
+                .WithMany()
+                .HasForeignKey(n => n.MotoristaId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

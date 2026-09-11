@@ -9,7 +9,7 @@ namespace TransportesApp.Application.Services
     // (Checkout Pro único via PagamentoService), mas sem catálogo: preço fixo único.
     public class AssinaturaMotoristaExecutivoService
     {
-        public const decimal PrecoMensal = 49.90m;
+        public const decimal PrecoMensal = 99.90m;
 
         private readonly IAssinaturaMotoristaExecutivoRepository _assinaturaRepository;
         private readonly IMotoristaRepository _motoristaRepository;

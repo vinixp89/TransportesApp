@@ -32,6 +32,19 @@ namespace TransportesApp.Infrastructure.Repositories
             return await _context.Notificacoes.CountAsync(n => n.ClienteId == clienteId && !n.Lida);
         }
 
+        public async Task<IEnumerable<Notificacao>> ListarPorMotoristaAsync(Guid motoristaId)
+        {
+            return await _context.Notificacoes
+                .Where(n => n.MotoristaId == motoristaId)
+                .OrderByDescending(n => n.DataCriacao)
+                .ToListAsync();
+        }
+
+        public async Task<int> ContarNaoLidasPorMotoristaAsync(Guid motoristaId)
+        {
+            return await _context.Notificacoes.CountAsync(n => n.MotoristaId == motoristaId && !n.Lida);
+        }
+
         public async Task AdicionarAsync(Notificacao notificacao)
         {
             await _context.Notificacoes.AddAsync(notificacao);

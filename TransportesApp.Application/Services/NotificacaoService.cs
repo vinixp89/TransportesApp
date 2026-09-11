@@ -20,7 +20,13 @@ namespace TransportesApp.Application.Services
 
         public async Task CriarAsync(Guid clienteId, string titulo, string mensagem, TipoNotificacao tipo)
         {
-            var notificacao = new Notificacao(clienteId, titulo, mensagem, tipo);
+            var notificacao = Notificacao.ParaCliente(clienteId, titulo, mensagem, tipo);
+            await _notificacaoRepository.AdicionarAsync(notificacao);
+        }
+
+        public async Task CriarParaMotoristaAsync(Guid motoristaId, string titulo, string mensagem, TipoNotificacao tipo)
+        {
+            var notificacao = Notificacao.ParaMotorista(motoristaId, titulo, mensagem, tipo);
             await _notificacaoRepository.AdicionarAsync(notificacao);
         }
 
@@ -54,6 +60,43 @@ namespace TransportesApp.Application.Services
         public async Task MarcarTodasComoLidasAsync(Guid clienteId)
         {
             var notificacoes = await _notificacaoRepository.ListarPorClienteAsync(clienteId);
+
+            foreach (var notificacao in notificacoes.Where(n => !n.Lida))
+            {
+                notificacao.MarcarComoLida();
+                await _notificacaoRepository.AtualizarAsync(notificacao);
+            }
+        }
+
+        // Mesma lógica das quatro acima, só que pra caixa de entrada do motorista.
+        public async Task<IEnumerable<NotificacaoResponse>> ListarPorMotoristaAsync(Guid motoristaId)
+        {
+            var notificacoes = await _notificacaoRepository.ListarPorMotoristaAsync(motoristaId);
+            return notificacoes.Select(MapearParaResponse);
+        }
+
+        public async Task<ContagemNaoLidasResponse> ContarNaoLidasPorMotoristaAsync(Guid motoristaId)
+        {
+            var quantidade = await _notificacaoRepository.ContarNaoLidasPorMotoristaAsync(motoristaId);
+            return new ContagemNaoLidasResponse(quantidade);
+        }
+
+        public async Task<bool> MarcarComoLidaPorMotoristaAsync(Guid id, Guid motoristaId)
+        {
+            var notificacao = await _notificacaoRepository.ObterPorIdAsync(id);
+
+            if (notificacao is null || notificacao.MotoristaId != motoristaId)
+                return false;
+
+            notificacao.MarcarComoLida();
+            await _notificacaoRepository.AtualizarAsync(notificacao);
+
+            return true;
+        }
+
+        public async Task MarcarTodasComoLidasPorMotoristaAsync(Guid motoristaId)
+        {
+            var notificacoes = await _notificacaoRepository.ListarPorMotoristaAsync(motoristaId);
 
             foreach (var notificacao in notificacoes.Where(n => !n.Lida))
             {

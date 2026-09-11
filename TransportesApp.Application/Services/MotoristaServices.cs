@@ -115,6 +115,19 @@ namespace TransportesApp.Application.Services
             return MapearParaResponse(motorista);
         }
 
+        public async Task<bool> ExcluirContaAsync(Guid usuarioId)
+        {
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return false;
+
+            motorista.Excluir();
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return true;
+        }
+
         public async Task<MotoristaResponse?> AtualizarLocalizacaoAsync(Guid usuarioId, double latitude, double longitude)
         {
             var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
