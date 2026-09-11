@@ -8,9 +8,11 @@ namespace TransportesApp.Domain.Entities
     // OU ativa) — mesmo índice único e mesmo ciclo de vida do AssinaturaPlano (ver
     // AssinaturaMotoristaExecutivoConfiguration).
     //
-    // Cobrança é um pagamento único (Checkout Pro), não recorrência de verdade — mesma limitação já
-    // aceita no AssinaturaPlano hoje: fica Ativa indefinidamente até o motorista cancelar, sem
-    // recobrança automática mensal.
+    // Cobrança recorrente de verdade via Preapproval do Mercado Pago (não Checkout Pro de pagamento
+    // único como o resto do sistema) — ver MercadoPagoGateway.CriarPreapprovalAsync. Primeira cobrança
+    // sai um mês depois da assinatura (mês de graça); dali em diante, o próprio Mercado Pago cobra
+    // automaticamente todo mês, sem job nenhum do nosso lado — a gente só reage ao webhook de
+    // preapproval (autorização/cancelamento), ver PagamentosController.
     public class AssinaturaMotoristaExecutivo
     {
         public Guid Id { get; private set; }
@@ -18,6 +20,9 @@ namespace TransportesApp.Domain.Entities
         public DateTime DataInicio { get; private set; }
         public DateTime? DataCancelamento { get; private set; }
         public StatusAssinatura Status { get; private set; }
+        // Id da assinatura recorrente no Mercado Pago — usado pra cancelar lá quando o motorista
+        // cancela aqui (ver AssinaturaMotoristaExecutivoService.CancelarAsync).
+        public string? PreapprovalId { get; private set; }
 
         protected AssinaturaMotoristaExecutivo() { }
 
@@ -29,7 +34,12 @@ namespace TransportesApp.Domain.Entities
             Status = StatusAssinatura.PendentePagamento;
         }
 
-        // Chamado pelo PagamentoService quando o pagamento associado é aprovado.
+        // Chamado assim que o Preapproval é criado no Mercado Pago (ver
+        // AssinaturaMotoristaExecutivoService.AssinarAsync) — antes ainda do motorista autorizar.
+        public void RegistrarPreapproval(string preapprovalId) => PreapprovalId = preapprovalId;
+
+        // Chamado quando o Mercado Pago confirma que o motorista autorizou a assinatura recorrente
+        // (webhook de preapproval, status "authorized").
         public void Ativar()
         {
             if (Status is not (StatusAssinatura.PendentePagamento or StatusAssinatura.PagamentoRecusado))

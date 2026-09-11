@@ -21,6 +21,9 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(a => a.Status)
                 .IsRequired();
 
+            builder.Property(a => a.PreapprovalId)
+                .HasMaxLength(100);
+
             // Um motorista só pode ter UMA assinatura Executivo "em aberto" por vez — mesmo índice parcial
             // do AssinaturaPlano (0 = PendentePagamento, 1 = Ativa).
             builder.HasIndex(a => a.MotoristaId)

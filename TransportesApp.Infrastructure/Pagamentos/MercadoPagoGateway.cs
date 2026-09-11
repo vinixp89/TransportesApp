@@ -1,5 +1,6 @@
 using MercadoPago.Client.Common;
 using MercadoPago.Client.Payment;
+using MercadoPago.Client.Preapproval;
 using MercadoPago.Client.Preference;
 using MercadoPago.Config;
 using TransportesApp.Domain.Enums;
@@ -103,6 +104,57 @@ namespace TransportesApp.Infrastructure.Pagamentos
 
             var client = new PaymentClient();
             await client.RefundAsync(id);
+        }
+
+        // Preapproval = assinatura recorrente de verdade (cobra sozinho todo mês, diferente de
+        // Preference que é pagamento único) — StartDate controla quando a primeira cobrança acontece,
+        // é assim que a gente dá um mês de graça antes de começar a cobrar (ver
+        // AssinaturaMotoristaExecutivoService.AssinarAsync). Status "pending" + InitPoint: o motorista
+        // precisa passar pela página do Mercado Pago pra autorizar a cobrança recorrente, mesmo
+        // princípio do redirecionamento do Checkout Pro.
+        public async Task<PreapprovalCriado> CriarPreapprovalAsync(SolicitacaoPreapproval solicitacao)
+        {
+            GarantirAccessTokenConfigurado();
+
+            var request = new PreapprovalCreateRequest
+            {
+                PayerEmail = solicitacao.EmailPagador,
+                BackUrl = solicitacao.UrlRetorno,
+                Reason = solicitacao.Descricao,
+                ExternalReference = solicitacao.ExternalReference,
+                Status = "pending",
+                AutoRecurring = new PreApprovalAutoRecurringCreateRequest
+                {
+                    CurrencyId = "BRL",
+                    TransactionAmount = solicitacao.Valor,
+                    Frequency = 1,
+                    FrequencyType = "months",
+                    StartDate = solicitacao.PrimeiraCobranca,
+                },
+            };
+
+            var client = new PreapprovalClient();
+            var preapproval = await client.CreateAsync(request);
+
+            return new PreapprovalCriado(preapproval.Id, preapproval.InitPoint);
+        }
+
+        public async Task<PreapprovalStatusGateway> ConsultarPreapprovalAsync(string preapprovalId)
+        {
+            GarantirAccessTokenConfigurado();
+
+            var client = new PreapprovalClient();
+            var preapproval = await client.GetAsync(preapprovalId);
+
+            return new PreapprovalStatusGateway(preapproval.Id, preapproval.ExternalReference, preapproval.Status);
+        }
+
+        public async Task CancelarPreapprovalAsync(string preapprovalId)
+        {
+            GarantirAccessTokenConfigurado();
+
+            var client = new PreapprovalClient();
+            await client.UpdateAsync(preapprovalId, new PreapprovalUpdateRequest { Status = "cancelled" });
         }
 
         public async Task<StatusPagamentoGateway> ConsultarPagamentoAsync(string pagamentoGatewayId)

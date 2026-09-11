@@ -12,11 +12,16 @@ namespace TransportesApp.Api.Controllers
     {
         private readonly PagamentoService _pagamentoService;
         private readonly ClienteService _clienteService;
+        private readonly AssinaturaMotoristaExecutivoService _assinaturaMotoristaExecutivoService;
 
-        public PagamentosController(PagamentoService pagamentoService, ClienteService clienteService)
+        public PagamentosController(
+            PagamentoService pagamentoService,
+            ClienteService clienteService,
+            AssinaturaMotoristaExecutivoService assinaturaMotoristaExecutivoService)
         {
             _pagamentoService = pagamentoService;
             _clienteService = clienteService;
+            _assinaturaMotoristaExecutivoService = assinaturaMotoristaExecutivoService;
         }
 
         // Mercado Pago chama essa rota direto do servidor deles — não tem usuário logado nem token
@@ -36,14 +41,27 @@ namespace TransportesApp.Api.Controllers
             var tipo = tipoQuery ?? payload?.Type;
             var id = idQuery ?? payload?.Data?.Id;
 
-            // Notificação de outro tipo (ex: merchant_order) — não é erro, só não é o que a gente
-            // processa. Sempre 200 aqui: devolver erro faria o Mercado Pago reenviar à toa.
-            if (tipo != "payment" || string.IsNullOrWhiteSpace(id))
+            if (string.IsNullOrWhiteSpace(id))
                 return Ok();
 
             try
             {
-                await _pagamentoService.ProcessarNotificacaoAsync(id);
+                if (tipo == "payment")
+                {
+                    await _pagamentoService.ProcessarNotificacaoAsync(id);
+                }
+                // O Mercado Pago manda o tópico da assinatura recorrente (Preapproval) como
+                // "preapproval" ou "subscription_preapproval" dependendo do canal — aceita os dois pra
+                // não depender de acertar o nome exato. Cobranças de fato (a cada mês) chegam à parte,
+                // como notificação "payment" normal — mas como o ExternalReference delas aponta pra um
+                // AssinaturaMotoristaExecutivo (não um Pagamento), ProcessarNotificacaoAsync já ignora
+                // sozinho (não acha nenhum Pagamento com aquele Id) sem quebrar nada.
+                else if (tipo is "preapproval" or "subscription_preapproval")
+                {
+                    await _assinaturaMotoristaExecutivoService.ProcessarNotificacaoPreapprovalAsync(id);
+                }
+                // Notificação de outro tipo (ex: merchant_order) — não é erro, só não é o que a gente
+                // processa.
             }
             catch
             {

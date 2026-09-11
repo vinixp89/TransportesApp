@@ -30,6 +30,21 @@ namespace TransportesApp.Domain.Interfaces
         // uma corrida avulsa que já foi paga de verdade. pagamentoGatewayId é o Id que O GATEWAY deu
         // ao pagamento (o mesmo usado em ConsultarPagamentoAsync), não o nosso Pagamento.Id.
         Task EstornarPagamentoAsync(string pagamentoGatewayId);
+
+        // Cria uma assinatura recorrente de verdade (Preapproval do Mercado Pago, diferente de
+        // CriarPreferenciaAsync que é pagamento único) e devolve a URL pra redirecionar o motorista
+        // autorizar. PrimeiraCobranca controla quando a primeira cobrança de fato acontece — usado pra
+        // dar um mês de graça antes de começar a cobrar (ver AssinaturaMotoristaExecutivoService).
+        Task<PreapprovalCriado> CriarPreapprovalAsync(SolicitacaoPreapproval solicitacao);
+
+        // Consulta o status atual de uma assinatura recorrente no gateway — usado pelo webhook de
+        // preapproval, mesmo princípio do ConsultarPagamentoAsync (nunca confia no corpo da
+        // notificação, sempre busca de volta na API do gateway).
+        Task<PreapprovalStatusGateway> ConsultarPreapprovalAsync(string preapprovalId);
+
+        // Cancela uma assinatura recorrente no gateway — usado quando o motorista cancela pelo nosso
+        // app (senão o Mercado Pago continuaria cobrando todo mês).
+        Task CancelarPreapprovalAsync(string preapprovalId);
     }
 
     public sealed record SolicitacaoPagamento(
@@ -80,5 +95,33 @@ namespace TransportesApp.Domain.Interfaces
         // Imagem do QR Code já pronta, em base64 (PNG) — o Mercado Pago gera ela pronta, não precisa
         // de biblioteca de QR Code nenhuma no nosso lado.
         string QrCodeBase64
+    );
+
+    // Sem UrlNotificacao aqui de propósito — diferente de Preference/Pix, o SDK do Mercado Pago não
+    // tem campo de notification_url pra Preapproval; quem recebe os eventos de assinatura é a URL de
+    // webhook configurada na Aplicação (painel do Mercado Pago), a mesma já usada pra tudo.
+    public sealed record SolicitacaoPreapproval(
+        string ExternalReference,
+        string Descricao,
+        decimal Valor,
+        string EmailPagador,
+        // Data da primeira cobrança de verdade — o motorista autoriza a assinatura na hora, mas só é
+        // cobrado a partir dessa data (ver AssinaturaMotoristaExecutivoService, mês de graça).
+        DateTime PrimeiraCobranca,
+        string UrlRetorno
+    );
+
+    public sealed record PreapprovalCriado(
+        string PreapprovalId,
+        string UrlCheckout
+    );
+
+    // Status vem cru do Mercado Pago ("pending", "authorized", "paused", "cancelled") — quem traduz
+    // pra StatusAssinatura é o AssinaturaMotoristaExecutivoService, porque esse vocabulário é
+    // específico de assinatura, diferente do StatusPagamento usado pelos pagamentos únicos.
+    public sealed record PreapprovalStatusGateway(
+        string PreapprovalId,
+        string? ExternalReference,
+        string? Status
     );
 }
