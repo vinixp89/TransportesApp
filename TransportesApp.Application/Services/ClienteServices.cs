@@ -64,6 +64,37 @@ namespace TransportesApp.Application.Services
 
         // Anonimiza os dados do Cliente (ver Cliente.Excluir) — quem chama isso (AuthController)
         // também bloqueia o login da conta via UserManager, já que isso aqui não mexe em Identity.
+        // Salva o caminho da selfie enviada — quem já gravou o arquivo em disco e gerou a URL é o
+        // controller (ClientesController.EnviarFotoSelfie), mesmo padrão do
+        // MotoristaService.DefinirFotosAsync.
+        public async Task<ClienteResponse?> DefinirFotoSelfieAsync(Guid usuarioId, string fotoSelfieUrl)
+        {
+            var cliente = await _clienteRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return null;
+
+            cliente.DefinirFotoSelfie(fotoSelfieUrl);
+            await _clienteRepository.AtualizarAsync(cliente);
+
+            return MapearParaResponse(cliente);
+        }
+
+        // Aceite dos termos de uso (ver Cliente.AceitarTermos) — chamado pela tela dedicada no
+        // cadastro (ver ClientesController.AceitarTermos).
+        public async Task<ClienteResponse?> AceitarTermosAsync(Guid usuarioId)
+        {
+            var cliente = await _clienteRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return null;
+
+            cliente.AceitarTermos();
+            await _clienteRepository.AtualizarAsync(cliente);
+
+            return MapearParaResponse(cliente);
+        }
+
         public async Task<bool> ExcluirContaAsync(Guid usuarioId)
         {
             var cliente = await _clienteRepository.ObterPorUsuarioIdAsync(usuarioId);
@@ -87,7 +118,10 @@ namespace TransportesApp.Application.Services
                 cliente.Telefone,
                 cliente.Email,
                 cliente.AvaliacaoMedia,
-                cliente.DataCadastro
+                cliente.DataCadastro,
+                cliente.TelefoneVerificado,
+                cliente.TermosAceitos,
+                cliente.FotoSelfieUrl is not null
             );
         }
     }

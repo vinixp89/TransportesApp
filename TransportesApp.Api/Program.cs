@@ -16,6 +16,7 @@ using TransportesApp.Infrastructure.Email;
 using TransportesApp.Infrastructure.Maps;
 using TransportesApp.Infrastructure.Pagamentos;
 using TransportesApp.Infrastructure.Repositories;
+using TransportesApp.Infrastructure.Sms;
 using Microsoft.OpenApi;
 
 namespace TransportesApp.Api
@@ -49,6 +50,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ICarteiraMotoristaRepository, CarteiraMotoristaRepository>();
             builder.Services.AddScoped<ITransacaoCarteiraMotoristaRepository, TransacaoCarteiraMotoristaRepository>();
             builder.Services.AddScoped<ISolicitacaoSaqueRepository, SolicitacaoSaqueRepository>();
+            builder.Services.AddScoped<IMensagemChatRepository, MensagemChatRepository>();
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
 
             // Cliente HTTP da API Banking do Banco Inter (envio de Pix pros saques dos motoristas —
@@ -97,7 +99,10 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<NotificacaoService>();
             builder.Services.AddScoped<CarteiraMotoristaService>();
             builder.Services.AddScoped<EnderecoAutocompleteService>();
+            builder.Services.AddScoped<VerificacaoSmsService>();
+            builder.Services.AddScoped<MensagemChatService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+            builder.Services.AddScoped<ISmsService, TwilioSmsService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
 
             // Access Token do Mercado Pago é lido uma vez aqui no startup (via User Secrets:

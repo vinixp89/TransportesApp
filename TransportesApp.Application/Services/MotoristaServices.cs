@@ -31,6 +31,7 @@ namespace TransportesApp.Application.Services
                 usuarioId: usuarioId,
                 cnh: request.Cnh,
                 cpf: request.Cpf,
+                telefone: request.Telefone,
                 placaVeiculo: request.PlacaVeiculo,
                 modeloVeiculo: request.ModeloVeiculo,
                 endereco: endereco,
@@ -71,6 +72,31 @@ namespace TransportesApp.Application.Services
             await _motoristaRepository.AtualizarAsync(motorista);
 
             return MapearParaResponse(motorista);
+        }
+
+        // Aceite dos termos/contrato do motorista (ver Motorista.AceitarTermos) — chamado pela tela
+        // dedicada no cadastro (ver MotoristasController.AceitarTermos).
+        public async Task<MotoristaResponse?> AceitarTermosAsync(Guid usuarioId)
+        {
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return null;
+
+            motorista.AceitarTermos();
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
+        // Caminho relativo cru da selfie, de propósito fora do MotoristaResponse (que só expõe o
+        // booleano FotosEnviadas) — usado só internamente por CorridasController.ObterFotoMotorista
+        // pra localizar o arquivo em disco e devolvê-lo como binário, atrás de autorização de que o
+        // cliente pedindo é dono de uma corrida em andamento com esse motorista.
+        public async Task<string?> ObterCaminhoFotoSelfieAsync(Guid motoristaId)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+            return motorista?.FotoSelfieUrl;
         }
 
         public async Task<IEnumerable<MotoristaResponse>> ListarAsync()
@@ -210,6 +236,7 @@ namespace TransportesApp.Application.Services
                 motorista.UsuarioId,
                 motorista.CNH,
                 motorista.Cpf,
+                motorista.Telefone,
                 motorista.PlacaVeiculo,
                 motorista.ModeloVeiculo,
                 motorista.AvaliacaoMedia,
@@ -227,7 +254,9 @@ namespace TransportesApp.Application.Services
                 motorista.Status,
                 motorista.LatitudeAtual,
                 motorista.LongitudeAtual,
-                motorista.FotoSelfieUrl is not null && motorista.FotoVeiculoUrl is not null && motorista.FotoPlacaUrl is not null
+                motorista.FotoSelfieUrl is not null && motorista.FotoVeiculoUrl is not null && motorista.FotoPlacaUrl is not null,
+                motorista.TelefoneVerificado,
+                motorista.TermosAceitos
             );
         }
     }

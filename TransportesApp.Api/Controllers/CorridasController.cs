@@ -15,12 +15,21 @@ namespace TransportesApp.Api.Controllers
         private readonly CorridaService _corridaService;
         private readonly ClienteService _clienteService;
         private readonly MotoristaService _motoristaService;
+        private readonly MensagemChatService _mensagemChatService;
+        private readonly IWebHostEnvironment _ambiente;
 
-        public CorridasController(CorridaService corridaService, ClienteService clienteService, MotoristaService motoristaService)
+        public CorridasController(
+            CorridaService corridaService,
+            ClienteService clienteService,
+            MotoristaService motoristaService,
+            MensagemChatService mensagemChatService,
+            IWebHostEnvironment ambiente)
         {
             _corridaService = corridaService;
             _clienteService = clienteService;
             _motoristaService = motoristaService;
+            _mensagemChatService = mensagemChatService;
+            _ambiente = ambiente;
         }
 
         // Calcula rota/faixa/valor SEM criar a corrida — usado pra tela de confirmação
@@ -267,6 +276,123 @@ namespace TransportesApp.Api.Controllers
                 motorista.LongitudeAtual,
                 motorista.PlacaVeiculo,
                 motorista.ModeloVeiculo));
+        }
+
+        // Dados do motorista atribuído, pro CLIENTE ver durante a corrida (carro/placa/avaliação) —
+        // restrito ao cliente dono dessa corrida específica, não é uma concessão permanente entre as
+        // duas contas: só dá pra consultar enquanto essa corrida existir com esse motorista atribuído.
+        [Authorize(Roles = "Cliente")]
+        [HttpGet("{id:guid}/motorista")]
+        public async Task<IActionResult> ObterMotoristaDaCorrida(Guid id)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await ClienteDonoDaCorridaAsync(corrida))
+                return Forbid();
+
+            if (corrida.MotoristaId is null)
+                return BadRequest(new { mensagem = "Essa corrida ainda não tem motorista atribuído." });
+
+            var motorista = await _motoristaService.ObterPorIdAsync(corrida.MotoristaId.Value);
+
+            if (motorista is null)
+                return NotFound();
+
+            return Ok(new MotoristaDaCorridaResponse(
+                motorista.PlacaVeiculo,
+                motorista.ModeloVeiculo,
+                motorista.AvaliacaoMeida,
+                motorista.FotosEnviadas));
+        }
+
+        // Foto (selfie) do motorista atribuído, servida como binário — mesma autorização do endpoint
+        // acima. O arquivo nunca é servido como rota estática pública (ver MotoristasController.
+        // SalvarArquivoAsync), só por aqui, atrás de autenticação + checagem de que quem pediu
+        // realmente está com uma corrida em andamento com esse motorista.
+        [Authorize(Roles = "Cliente")]
+        [HttpGet("{id:guid}/motorista/foto")]
+        public async Task<IActionResult> ObterFotoMotorista(Guid id)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await ClienteDonoDaCorridaAsync(corrida))
+                return Forbid();
+
+            if (corrida.MotoristaId is null)
+                return BadRequest(new { mensagem = "Essa corrida ainda não tem motorista atribuído." });
+
+            var caminhoRelativo = await _motoristaService.ObterCaminhoFotoSelfieAsync(corrida.MotoristaId.Value);
+
+            if (caminhoRelativo is null)
+                return NotFound();
+
+            var caminhoCompleto = Path.Combine(_ambiente.ContentRootPath, "uploads", caminhoRelativo);
+
+            if (!System.IO.File.Exists(caminhoCompleto))
+                return NotFound();
+
+            var contentType = Path.GetExtension(caminhoCompleto).ToLowerInvariant() switch
+            {
+                ".png" => "image/png",
+                _ => "image/jpeg"
+            };
+
+            return PhysicalFile(caminhoCompleto, contentType);
+        }
+
+        // Chat entre cliente e motorista — só enquanto a corrida está confirmada (motorista a
+        // caminho) ou em andamento; antes de aceita ou depois de finalizada/cancelada não faz
+        // sentido conversar. Mesmo padrão de autorização de ObterLocalizacaoMotorista acima.
+        [Authorize(Roles = "Cliente,Motorista")]
+        [HttpPost("{id:guid}/mensagens")]
+        public async Task<IActionResult> EnviarMensagem(Guid id, [FromBody] EnviarMensagemChatRequest request)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await UsuarioParticipaDaCorridaAsync(corrida))
+                return Forbid();
+
+            if (corrida.Status is not (StatusCorrida.Confirmada or StatusCorrida.EmAndamento))
+                return BadRequest(new { mensagem = "O chat só fica disponível enquanto a corrida está confirmada ou em andamento." });
+
+            var remetenteTipo = User.IsInRole("Cliente") ? TipoUsuario.Cliente : TipoUsuario.Motorista;
+
+            try
+            {
+                var mensagem = await _mensagemChatService.EnviarAsync(id, remetenteTipo, request.Texto);
+                return Ok(mensagem);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        // "desde" (opcional, ISO 8601) alimenta o polling incremental do app (só traz mensagem nova) —
+        // sem ele, devolve o histórico inteiro da corrida, usado ao abrir o chat pela primeira vez.
+        [Authorize(Roles = "Cliente,Motorista")]
+        [HttpGet("{id:guid}/mensagens")]
+        public async Task<IActionResult> ListarMensagens(Guid id, [FromQuery] DateTime? desde)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await UsuarioParticipaDaCorridaAsync(corrida))
+                return Forbid();
+
+            var mensagens = await _mensagemChatService.ListarAsync(id, desde);
+            return Ok(mensagens);
         }
 
         [Authorize(Roles = "Motorista")]

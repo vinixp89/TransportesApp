@@ -10,6 +10,7 @@ namespace TransportesApp.Domain.Entities
         public Guid UsuarioId { get; private set; }
         public string CNH { get; private set; }
         public string Cpf { get; private set; } = default!;
+        public string Telefone { get; private set; } = default!;
         public string PlacaVeiculo { get; private set; }
         public string ModeloVeiculo { get; private set; }
         public Endereco Endereco { get; private set; } = default!;
@@ -31,6 +32,14 @@ namespace TransportesApp.Domain.Entities
         public string? FotoVeiculoUrl { get; private set; }
         public string? FotoPlacaUrl { get; private set; }
 
+        // Verificação de telefone por SMS (ver VerificacaoSmsService) — quem envia/confere o código
+        // é o service, aqui só guarda o resultado final. TermosAceitos/DataAceiteTermos registram o
+        // aceite do contrato do motorista (ver AceitarTermos) — nullable porque quem se cadastrou
+        // antes dessas exigências existirem não tem esse dado preenchido.
+        public bool TelefoneVerificado { get; private set; }
+        public bool TermosAceitos { get; private set; }
+        public DateTime? DataAceiteTermos { get; private set; }
+
         public DateTime DataCadastro { get; private set; }
 
         // Idade máxima aceita pro veículo no cadastro comum — mais permissiva que os 3 anos exigidos
@@ -41,7 +50,7 @@ namespace TransportesApp.Domain.Entities
 
 
 
-        public Motorista(Guid usuarioId, string cnh, string cpf, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo)
+        public Motorista(Guid usuarioId, string cnh, string cpf, string telefone, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo)
         {
 
             if (string.IsNullOrWhiteSpace(cnh))
@@ -49,6 +58,9 @@ namespace TransportesApp.Domain.Entities
 
             if (!CpfValidator.EhValido(cpf))
                 throw new ArgumentException("CPF inválido.");
+
+            if (string.IsNullOrWhiteSpace(telefone))
+                throw new ArgumentException("Telefone é obrigatório.");
 
             if (endereco is null)
                 throw new ArgumentException("Endereço é obrigatório.");
@@ -63,6 +75,7 @@ namespace TransportesApp.Domain.Entities
             UsuarioId = usuarioId;
             CNH = cnh;
             Cpf = CpfValidator.Normalizar(cpf);
+            Telefone = telefone;
             PlacaVeiculo = placaVeiculo;
             ModeloVeiculo = modeloVeiculo;
             Endereco = endereco;
@@ -116,6 +129,20 @@ namespace TransportesApp.Domain.Entities
             FotoPlacaUrl = fotoPlacaUrl;
         }
 
+        // Chamado pelo VerificacaoSmsService depois que o motorista informa o código de 6 dígitos
+        // recebido por SMS (ver ISmsService) — nunca é chamado direto, sempre por trás da conferência
+        // do código.
+        public void VerificarTelefone() => TelefoneVerificado = true;
+
+        // Chamado quando o motorista aceita o contrato/termos de uso na tela dedicada do app — bloqueia
+        // o resto do fluxo até acontecer (ver MotoristaController). Idempotente: aceitar de novo só
+        // atualiza a data.
+        public void AceitarTermos()
+        {
+            TermosAceitos = true;
+            DataAceiteTermos = DateTime.UtcNow;
+        }
+
         // Categoria Executivo exige veículo com até 3 anos de fabricação (contando a partir do ano atual).
         public bool VeiculoElegivelParaExecutivo() => AnoVeiculo is not null && DateTime.UtcNow.Year - AnoVeiculo.Value <= 3;
 
@@ -128,6 +155,7 @@ namespace TransportesApp.Domain.Entities
         {
             CNH = "REMOVIDA";
             Cpf = "00000000000";
+            Telefone = "";
             PlacaVeiculo = "Removida";
             ModeloVeiculo = "Removido";
             Endereco = new Endereco("Removido", "0", "Removido", "Removido", "SP", 0, 0);

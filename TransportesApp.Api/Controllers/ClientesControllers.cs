@@ -13,11 +13,17 @@ namespace TransportesApp.Api.Controllers
     {
         private readonly ClienteService _clienteService;
         private readonly DoacaoService _doacaoService;
+        private readonly IWebHostEnvironment _ambiente;
 
-        public ClientesController(ClienteService clienteService, DoacaoService doacaoService)
+        // Mesmo limite/extensões aceitas de MotoristasController.EnviarFotos.
+        private const long TamanhoMaximoFotoBytes = 8 * 1024 * 1024;
+        private static readonly HashSet<string> ExtensoesAceitas = new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png" };
+
+        public ClientesController(ClienteService clienteService, DoacaoService doacaoService, IWebHostEnvironment ambiente)
         {
             _clienteService = clienteService;
             _doacaoService = doacaoService;
+            _ambiente = ambiente;
         }
 
         [Authorize(Roles = "Cliente")]
@@ -33,6 +39,48 @@ namespace TransportesApp.Api.Controllers
             var cliente = await _clienteService.CriarAsync(request, usuarioId, email);
             return Ok(cliente);
         }
+
+        // Selfie pedida no cadastro — mesmo padrão de MotoristasController.EnviarFotos: salva em
+        // disco (fora de qualquer rota estática pública), guarda só o caminho relativo no banco.
+        [Authorize(Roles = "Cliente")]
+        [HttpPost("foto-selfie")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public async Task<IActionResult> EnviarFotoSelfie(IFormFile selfie)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return BadRequest(new { mensagem = "Cadastre-se como cliente antes de enviar a selfie." });
+
+            if (selfie is null || selfie.Length == 0)
+                return BadRequest(new { mensagem = "A selfie é obrigatória." });
+
+            if (selfie.Length > TamanhoMaximoFotoBytes)
+                return BadRequest(new { mensagem = "A selfie passa do limite de 8 MB." });
+
+            if (!ExtensoesAceitas.Contains(Path.GetExtension(selfie.FileName)))
+                return BadRequest(new { mensagem = "A selfie precisa ser JPG ou PNG." });
+
+            var pastaCliente = Path.Combine(_ambiente.ContentRootPath, "uploads", "clientes", cliente.Id.ToString());
+            Directory.CreateDirectory(pastaCliente);
+
+            var extensao = Path.GetExtension(selfie.FileName).ToLowerInvariant();
+            var caminhoCompleto = Path.Combine(pastaCliente, $"selfie{extensao}");
+
+            await using (var stream = System.IO.File.Create(caminhoCompleto))
+                await selfie.CopyToAsync(stream);
+
+            var selfieUrl = $"clientes/{cliente.Id}/selfie{extensao}";
+            var atualizado = await _clienteService.DefinirFotoSelfieAsync(usuarioId, selfieUrl);
+
+            return Ok(atualizado);
+        }
+
+        // Aceite dos termos de uso: ver AuthController.AceitarTermos — endpoint único, compartilhado
+        // com Motorista (a role no token decide qual perfil atualizar), não duplicado aqui.
 
         [Authorize(Roles = "Admin")]
         [HttpGet]

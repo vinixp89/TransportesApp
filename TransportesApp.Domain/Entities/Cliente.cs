@@ -20,6 +20,17 @@ namespace TransportesApp.Domain.Entities
         public double? AvaliacaoMedia { get; private set; }
         public DateTime DataCadastro { get; private set; }
 
+        // Selfie pedida no cadastro (ver ClienteService.DefinirFotoSelfieAsync) — mesmo padrão do
+        // Motorista.FotoSelfieUrl: guarda o caminho relativo salvo em disco, não o binário, e é
+        // nullable porque quem se cadastrou antes dessa exigência existir não tem essa foto ainda.
+        public string? FotoSelfieUrl { get; private set; }
+
+        // Verificação de telefone por SMS e aceite dos termos de uso — mesmo padrão do Motorista
+        // (ver Motorista.VerificarTelefone/AceitarTermos).
+        public bool TelefoneVerificado { get; private set; }
+        public bool TermosAceitos { get; private set; }
+        public DateTime? DataAceiteTermos { get; private set; }
+
         protected Cliente() { }
 
         public Cliente(Guid usuarioId, string nome, string cpf, string telefone, string email, Endereco endereco)
@@ -50,6 +61,16 @@ namespace TransportesApp.Domain.Entities
             DataCadastro = DateTime.UtcNow;
         }
 
+        public void DefinirFotoSelfie(string fotoSelfieUrl) => FotoSelfieUrl = fotoSelfieUrl;
+
+        public void VerificarTelefone() => TelefoneVerificado = true;
+
+        public void AceitarTermos()
+        {
+            TermosAceitos = true;
+            DataAceiteTermos = DateTime.UtcNow;
+        }
+
         // Exclusão de conta (ver AuthController.ExcluirConta) — não é um DELETE de verdade, porque
         // Corridas/PacoteCorridas/TransacaoCarteira têm FK Restrict pra Cliente (histórico financeiro
         // precisa ser preservado por obrigação legal, ver seção 7 da política de privacidade). Em vez
@@ -63,6 +84,7 @@ namespace TransportesApp.Domain.Entities
             Telefone = "";
             Email = $"excluido-{Id:N}@vainaboamobilidade.com.br";
             Endereco = new Endereco("Removido", "0", "Removido", "Removido", "SP", 0, 0);
+            FotoSelfieUrl = null;
         }
     }
 }

@@ -27,6 +27,7 @@ namespace TransportesApp.Api.Controllers
         private readonly IMemoryCache _cache;
         private readonly ILogger<AuthController> _logger;
         private readonly PromocaoLancamentoService _promocaoLancamentoService;
+        private readonly VerificacaoSmsService _verificacaoSmsService;
 
         // Código de redefinição de senha (6 dígitos) guardado em memória por 15 min, junto com o
         // token de verdade do Identity que ele representa — não precisa de tabela nova no banco
@@ -44,7 +45,8 @@ namespace TransportesApp.Api.Controllers
             IEmailService emailService,
             IMemoryCache cache,
             ILogger<AuthController> logger,
-            PromocaoLancamentoService promocaoLancamentoService)
+            PromocaoLancamentoService promocaoLancamentoService,
+            VerificacaoSmsService verificacaoSmsService)
         {
             _userManager = userManager;
             _configuration = configuration;
@@ -54,6 +56,7 @@ namespace TransportesApp.Api.Controllers
             _cache = cache;
             _logger = logger;
             _promocaoLancamentoService = promocaoLancamentoService;
+            _verificacaoSmsService = verificacaoSmsService;
         }
 
         [HttpPost("registrar-cliente")]
@@ -136,6 +139,64 @@ namespace TransportesApp.Api.Controllers
             var token = await GerarTokenAsync(usuario);
 
             return Ok(token);
+        }
+
+        // Envia (ou reenvia) o código de verificação por SMS pro telefone que já está no cadastro —
+        // funciona tanto pra Cliente quanto pra Motorista, a role no token decide qual (ver
+        // VerificacaoSmsService). Chamado pela tela de confirmação de SMS logo depois do cadastro.
+        [HttpPost("enviar-codigo-sms")]
+        [Authorize(Roles = "Cliente,Motorista")]
+        public async Task<IActionResult> EnviarCodigoSms()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+            var tipo = User.IsInRole("Cliente") ? TipoUsuario.Cliente : TipoUsuario.Motorista;
+
+            try
+            {
+                await _verificacaoSmsService.EnviarCodigoAsync(tipo, usuarioId);
+                return Ok(new { mensagem = "Código enviado por SMS." });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        [HttpPost("confirmar-sms")]
+        [Authorize(Roles = "Cliente,Motorista")]
+        public async Task<IActionResult> ConfirmarSms([FromBody] ConfirmarSmsRequest request)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+            var tipo = User.IsInRole("Cliente") ? TipoUsuario.Cliente : TipoUsuario.Motorista;
+
+            var confirmou = await _verificacaoSmsService.ConfirmarCodigoAsync(tipo, usuarioId, request.Codigo);
+
+            if (!confirmou)
+                return BadRequest(new { mensagem = "Código inválido ou expirado. Peça um novo." });
+
+            return Ok(new { mensagem = "Telefone verificado com sucesso." });
+        }
+
+        // Registra o aceite dos termos de uso/contrato — funciona pros dois lados (ver
+        // ClienteService.AceitarTermosAsync / MotoristaService.AceitarTermosAsync), chamado pela tela
+        // dedicada de aceite no cadastro.
+        [HttpPost("aceitar-termos")]
+        [Authorize(Roles = "Cliente,Motorista")]
+        public async Task<IActionResult> AceitarTermos()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var resultado = User.IsInRole("Cliente")
+                ? (object?)await _clienteService.AceitarTermosAsync(usuarioId)
+                : await _motoristaService.AceitarTermosAsync(usuarioId);
+
+            if (resultado is null)
+                return BadRequest(new { mensagem = "Cadastro não encontrado pra essa conta." });
+
+            return Ok(resultado);
         }
 
         [HttpPost("login")]

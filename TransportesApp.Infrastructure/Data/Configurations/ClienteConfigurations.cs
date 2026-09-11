@@ -40,6 +40,15 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(c => c.DataCadastro)
                     .IsRequired();
 
+            builder.Property(c => c.FotoSelfieUrl)
+                .HasMaxLength(300);
+
+            builder.Property(c => c.TelefoneVerificado)
+                .IsRequired();
+
+            builder.Property(c => c.TermosAceitos)
+                .IsRequired();
+
             builder.OwnsOne(c => c.Endereco, endereco =>
 
             {

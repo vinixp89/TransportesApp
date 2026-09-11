@@ -5,6 +5,7 @@ namespace TransportesApp.Application.DTOs
     public record CriarMotoristaRequest(
         string Cnh,
         string Cpf,
+        string Telefone,
         string PlacaVeiculo,
         string ModeloVeiculo,
         int AnoVeiculo,
@@ -23,6 +24,7 @@ namespace TransportesApp.Application.DTOs
         Guid UsuarioId,
         string Cnh,
         string Cpf,
+        string Telefone,
         string PlacaVeiculo,
         string ModeloVeiculo,
         double AvaliacaoMeida,
@@ -31,7 +33,19 @@ namespace TransportesApp.Application.DTOs
         StatusMotorista Status,
         double? LatitudeAtual,
         double? LongitudeAtual,
-        bool FotosEnviadas
+        bool FotosEnviadas,
+        bool TelefoneVerificado,
+        bool TermosAceitos
+    );
+
+    // Dados do motorista que o CLIENTE pode ver enquanto está com uma corrida em andamento com ele —
+    // deliberadamente sem CPF/CNH/telefone (ver CorridasController.ObterMotoristaDaCorrida). A foto
+    // em si não vem aqui (é binário) — TemFoto só indica se dá pra chamar o endpoint que a serve.
+    public record MotoristaDaCorridaResponse(
+        string PlacaVeiculo,
+        string ModeloVeiculo,
+        double AvaliacaoMedia,
+        bool TemFoto
     );
 
     // Versão enxuta, sem CPF/CNH, pra um cliente ver motoristas disponíveis sem expor dados sensíveis de outra pessoa.
