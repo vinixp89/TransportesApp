@@ -212,7 +212,8 @@ namespace TransportesApp.Api.Controllers
             if (motorista is null)
                 return BadRequest(new { mensagem = "Cadastre-se como motorista antes de assinar a categoria Executivo." });
 
-            var email = User.FindFirstValue(JwtRegisteredClaimNames.Email)!;
+            var email = User.FindFirstValue(ClaimTypes.Email)
+                ?? User.FindFirstValue(JwtRegisteredClaimNames.Email)!;
 
             try
             {
