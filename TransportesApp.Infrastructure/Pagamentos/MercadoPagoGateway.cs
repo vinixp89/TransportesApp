@@ -3,6 +3,7 @@ using MercadoPago.Client.Payment;
 using MercadoPago.Client.Preapproval;
 using MercadoPago.Client.Preference;
 using MercadoPago.Config;
+using MercadoPago.Error;
 using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
 
@@ -134,9 +135,16 @@ namespace TransportesApp.Infrastructure.Pagamentos
             };
 
             var client = new PreapprovalClient();
-            var preapproval = await client.CreateAsync(request);
 
-            return new PreapprovalCriado(preapproval.Id, preapproval.InitPoint);
+            try
+            {
+                var preapproval = await client.CreateAsync(request);
+                return new PreapprovalCriado(preapproval.Id, preapproval.InitPoint);
+            }
+            catch (MercadoPagoApiException ex)
+            {
+                throw new InvalidOperationException($"Mercado Pago recusou a criação da assinatura: {ex.Message}", ex);
+            }
         }
 
         public async Task<PreapprovalStatusGateway> ConsultarPreapprovalAsync(string preapprovalId)

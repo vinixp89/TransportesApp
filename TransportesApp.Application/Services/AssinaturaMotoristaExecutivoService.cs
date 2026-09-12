@@ -78,14 +78,26 @@ namespace TransportesApp.Application.Services
             var urlRetornoBase = (_configuration["MercadoPago:UrlRetornoFrontend"] ?? "http://localhost:5173").TrimEnd('/');
             var urlRetorno = $"{urlRetornoBase}/pagamentos/retorno";
 
-            var preapproval = await _gateway.CriarPreapprovalAsync(new SolicitacaoPreapproval(
-                ExternalReference: nova.Id.ToString(),
-                Descricao: "Assinatura Executivo — Vai na Boa",
-                Valor: PrecoMensal,
-                EmailPagador: emailPagador,
-                PrimeiraCobranca: DateTime.UtcNow.AddMonths(MesesDeGraca),
-                UrlRetorno: urlRetorno
-            ));
+            PreapprovalCriado preapproval;
+            try
+            {
+                preapproval = await _gateway.CriarPreapprovalAsync(new SolicitacaoPreapproval(
+                    ExternalReference: nova.Id.ToString(),
+                    Descricao: "Assinatura Executivo — Vai na Boa",
+                    Valor: PrecoMensal,
+                    EmailPagador: emailPagador,
+                    PrimeiraCobranca: DateTime.UtcNow.AddMonths(MesesDeGraca),
+                    UrlRetorno: urlRetorno
+                ));
+            }
+            catch (InvalidOperationException)
+            {
+                // Sem isso, uma recusa do gateway (ex: e-mail inválido) deixava a assinatura presa em
+                // PendentePagamento pra sempre — o motorista nunca mais conseguia tentar de novo.
+                nova.Cancelar();
+                await _assinaturaRepository.AtualizarAsync(nova);
+                throw;
+            }
 
             nova.RegistrarPreapproval(preapproval.PreapprovalId);
             await _assinaturaRepository.AtualizarAsync(nova);
