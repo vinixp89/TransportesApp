@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -34,7 +35,14 @@ namespace TransportesApp.Api
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
 
-            builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+            // PendingModelChangesWarning vira erro fatal por padrão a partir do EF Core 8 se a versão
+            // do pacote NuGet usada pra compilar o container (não fixada com versão exata) detectar
+            // qualquer diferença cosmética entre o model compilado e a última migration — mesmo sem
+            // mudança real de schema. Rebaixado pra warning aqui pra não derrubar a API por causa
+            // disso; o schema de verdade continua sendo validado pelo MigrateAsync normalmente.
+            builder.Services.AddDbContext<AppDbContext>(options => options
+                .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
 
             builder.Services.AddScoped<IClienteRepository, ClienteRepository>();
             builder.Services.AddScoped<ICorridaRepository, CorridaRepository>();
