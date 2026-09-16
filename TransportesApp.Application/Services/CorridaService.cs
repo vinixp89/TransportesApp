@@ -206,8 +206,8 @@ namespace TransportesApp.Application.Services
                 rota.DistanciaKm,
                 rota.DuracaoMinutos,
                 rota.Faixa.Cor,
-                request.Categoria,
-                rota.Faixa.ObterPreco(request.Categoria),
+                rota.Faixa.ObterPreco(CategoriaCorrida.Normal),
+                rota.Faixa.ObterPreco(CategoriaCorrida.Executivo),
                 rota.Avisos.Count > 0 ? rota.Avisos : null
             );
         }

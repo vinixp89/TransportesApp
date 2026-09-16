@@ -115,8 +115,11 @@ namespace TransportesApp.Application.DTOs
     public record FinalizarCorridaResponse(bool EstouroFaixa,CorridaResponse Corrida);
 
     // Calcula rota, faixa e valor SEM criar a corrida — usado pra mostrar uma tela de confirmação
-    // ("essa corrida vai custar X, faixa Y — confirma?") antes de efetivamente solicitar.
-    public record EstimarCorridaRequest(EnderecoRequest Origem, EnderecoRequest Destino, CategoriaCorrida Categoria = CategoriaCorrida.Normal);
+    // ("essa corrida vai custar X, faixa Y — confirma?") antes de efetivamente solicitar. Sem Categoria
+    // de propósito: devolve os dois valores (Normal e Executivo) de uma vez, pra tela deixar o cliente
+    // comparar e escolher DEPOIS de ver o preço — a categoria escolhida só é informada na hora de criar
+    // a corrida de verdade (ver CriarCorridaRequest).
+    public record EstimarCorridaRequest(EnderecoRequest Origem, EnderecoRequest Destino);
 
     public record EstimarCorridaResponse
         (
@@ -125,8 +128,8 @@ namespace TransportesApp.Application.DTOs
             double DistanciaEstimadaKm,
             double? DuracaoEstimadaMinutos,
             CorFaixa Faixa,
-            CategoriaCorrida Categoria,
-            decimal ValorReferencia,
+            decimal ValorReferenciaNormal,
+            decimal ValorReferenciaExecutivo,
             IReadOnlyList<string>? AvisosEndereco
         );
 }
