@@ -8,6 +8,7 @@ namespace TransportesApp.Domain.Entities
     {
         public Guid Id { get; private set; }
         public Guid UsuarioId { get; private set; }
+        public string Nome { get; private set; } = default!;
         public string CNH { get; private set; }
         public string Cpf { get; private set; } = default!;
         public string Telefone { get; private set; } = default!;
@@ -50,8 +51,11 @@ namespace TransportesApp.Domain.Entities
 
 
 
-        public Motorista(Guid usuarioId, string cnh, string cpf, string telefone, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo)
+        public Motorista(Guid usuarioId, string nome, string cnh, string cpf, string telefone, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo)
         {
+
+            if (string.IsNullOrWhiteSpace(nome))
+                throw new ArgumentException("Nome é obrigatório.");
 
             if (string.IsNullOrWhiteSpace(cnh))
                 throw new ArgumentException("CNH é Obrigatória. ");
@@ -73,6 +77,7 @@ namespace TransportesApp.Domain.Entities
 
             Id = Guid.NewGuid();
             UsuarioId = usuarioId;
+            Nome = nome;
             CNH = cnh;
             Cpf = CpfValidator.Normalizar(cpf);
             Telefone = telefone;
@@ -157,6 +162,7 @@ namespace TransportesApp.Domain.Entities
         // também bloqueia o login da conta (ver UserManager no AuthController).
         public void Excluir()
         {
+            Nome = "Removido";
             CNH = "REMOVIDA";
             Cpf = "00000000000";
             Telefone = "";

@@ -12,6 +12,10 @@ namespace TransportesApp.Infrastructure.Data.Configurations
 
             builder.HasKey(m => m.Id);
 
+            builder.Property(m => m.Nome)
+                .IsRequired()
+                .HasMaxLength(150);
+
             builder.Property(m => m.CNH)
                 .IsRequired()
                 .HasMaxLength(20);

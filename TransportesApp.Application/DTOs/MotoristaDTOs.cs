@@ -3,6 +3,7 @@ using TransportesApp.Domain.Enums;
 namespace TransportesApp.Application.DTOs
 {
     public record CriarMotoristaRequest(
+        string Nome,
         string Cnh,
         string Cpf,
         string Telefone,
@@ -22,6 +23,7 @@ namespace TransportesApp.Application.DTOs
     public record MotoristaResponse(
         Guid Id,
         Guid UsuarioId,
+        string Nome,
         string Cnh,
         string Cpf,
         string Telefone,

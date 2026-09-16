@@ -29,6 +29,7 @@ namespace TransportesApp.Application.Services
 
             var motorista = new Motorista(
                 usuarioId: usuarioId,
+                nome: request.Nome,
                 cnh: request.Cnh,
                 cpf: request.Cpf,
                 telefone: request.Telefone,
@@ -249,6 +250,7 @@ namespace TransportesApp.Application.Services
             return new MotoristaResponse(
                 motorista.Id,
                 motorista.UsuarioId,
+                motorista.Nome,
                 motorista.CNH,
                 motorista.Cpf,
                 motorista.Telefone,
