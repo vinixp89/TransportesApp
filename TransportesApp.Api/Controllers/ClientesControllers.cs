@@ -115,6 +115,24 @@ namespace TransportesApp.Api.Controllers
             return Ok(resultado);
         }
 
+        // Perfil do próprio cliente logado — usado pelo app pra saber se falta completar alguma etapa
+        // do cadastro (selfie, termos, telefone) antes de liberar o resto do app (ver
+        // ClienteResponse.TelefoneVerificado/TermosAceitos/TemFotoSelfie).
+        [Authorize(Roles = "Cliente")]
+        [HttpGet("meu-perfil")]
+        public async Task<IActionResult> MeuPerfil()
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (cliente is null)
+                return NotFound();
+
+            return Ok(cliente);
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> ObterPorId(Guid id)
         {
