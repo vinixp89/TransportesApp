@@ -16,6 +16,7 @@ namespace TransportesApp.Api.Controllers
         private readonly ClienteService _clienteService;
         private readonly MotoristaService _motoristaService;
         private readonly MensagemChatService _mensagemChatService;
+        private readonly AvaliacaoService _avaliacaoService;
         private readonly IWebHostEnvironment _ambiente;
 
         public CorridasController(
@@ -23,12 +24,14 @@ namespace TransportesApp.Api.Controllers
             ClienteService clienteService,
             MotoristaService motoristaService,
             MensagemChatService mensagemChatService,
+            AvaliacaoService avaliacaoService,
             IWebHostEnvironment ambiente)
         {
             _corridaService = corridaService;
             _clienteService = clienteService;
             _motoristaService = motoristaService;
             _mensagemChatService = mensagemChatService;
+            _avaliacaoService = avaliacaoService;
             _ambiente = ambiente;
         }
 
@@ -393,6 +396,81 @@ namespace TransportesApp.Api.Controllers
 
             var mensagens = await _mensagemChatService.ListarAsync(id, desde);
             return Ok(mensagens);
+        }
+
+        // Avaliação de 1 a 5 estrelas + comentário opcional, só depois da corrida finalizada — cada
+        // lado (Cliente sobre o Motorista, Motorista sobre o Cliente) avalia no máximo uma vez (ver
+        // AvaliacaoService.AvaliarAsync). Diferente do chat, não usa UsuarioParticipaDaCorridaAsync
+        // porque também precisa saber QUEM avaliou (autorTipo) e QUEM foi avaliado (avaliadoId).
+        [Authorize(Roles = "Cliente,Motorista")]
+        [HttpPost("{id:guid}/avaliar")]
+        public async Task<IActionResult> Avaliar(Guid id, [FromBody] AvaliarCorridaRequest request)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (corrida.Status != StatusCorrida.Finalizada)
+                return BadRequest(new { mensagem = "Só é possível avaliar corridas finalizadas." });
+
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            TipoUsuario autorTipo;
+            Guid avaliadoId;
+
+            if (User.IsInRole("Cliente"))
+            {
+                var cliente = await _clienteService.ObterPorUsuarioIdAsync(usuarioId);
+
+                if (cliente is null || cliente.Id != corrida.ClienteId)
+                    return Forbid();
+
+                if (corrida.MotoristaId is null)
+                    return BadRequest(new { mensagem = "Essa corrida não teve motorista atribuído." });
+
+                autorTipo = TipoUsuario.Cliente;
+                avaliadoId = corrida.MotoristaId.Value;
+            }
+            else
+            {
+                var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+                if (motorista is null || corrida.MotoristaId != motorista.Id)
+                    return Forbid();
+
+                autorTipo = TipoUsuario.Motorista;
+                avaliadoId = corrida.ClienteId;
+            }
+
+            try
+            {
+                var avaliacao = await _avaliacaoService.AvaliarAsync(id, autorTipo, avaliadoId, request.Nota, request.Comentario);
+                return Ok(avaliacao);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        // Devolve as avaliações já feitas dessa corrida (0, 1 ou 2) — usado pela tela pra saber se
+        // esconde o formulário de avaliação de quem já avaliou.
+        [Authorize(Roles = "Cliente,Motorista")]
+        [HttpGet("{id:guid}/avaliacoes")]
+        public async Task<IActionResult> ListarAvaliacoes(Guid id)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await UsuarioParticipaDaCorridaAsync(corrida))
+                return Forbid();
+
+            var avaliacoes = await _avaliacaoService.ListarPorCorridaAsync(id);
+            return Ok(avaliacoes);
         }
 
         [Authorize(Roles = "Motorista")]

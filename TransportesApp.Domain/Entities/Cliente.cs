@@ -71,6 +71,11 @@ namespace TransportesApp.Domain.Entities
             DataAceiteTermos = DateTime.UtcNow;
         }
 
+        // Chamado pelo AvaliacaoService depois de qualquer avaliação nova de um motorista sobre esse
+        // cliente — sempre a média recalculada de TODAS as avaliações recebidas, nunca incrementada.
+        // Null enquanto o cliente nunca foi avaliado (ver construtor).
+        public void DefinirAvaliacaoMedia(double? media) => AvaliacaoMedia = media;
+
         // Exclusão de conta (ver AuthController.ExcluirConta) — não é um DELETE de verdade, porque
         // Corridas/PacoteCorridas/TransacaoCarteira têm FK Restrict pra Cliente (histórico financeiro
         // precisa ser preservado por obrigação legal, ver seção 7 da política de privacidade). Em vez

@@ -146,6 +146,10 @@ namespace TransportesApp.Domain.Entities
         // Categoria Executivo exige veículo com até 3 anos de fabricação (contando a partir do ano atual).
         public bool VeiculoElegivelParaExecutivo() => AnoVeiculo is not null && DateTime.UtcNow.Year - AnoVeiculo.Value <= 3;
 
+        // Chamado pelo AvaliacaoService depois de qualquer avaliação nova de um cliente sobre esse
+        // motorista — sempre a média recalculada de TODAS as avaliações recebidas, nunca incrementada.
+        public void DefinirAvaliacaoMedia(double media) => AvaliacaoMedia = media;
+
         // Exclusão de conta (ver AuthController.ExcluirContaMotorista) — mesmo padrão do
         // Cliente.Excluir: não é DELETE de verdade (Corridas/TransacaoCarteiraMotorista têm FK
         // Restrict pra Motorista, histórico financeiro precisa ser preservado por obrigação legal),

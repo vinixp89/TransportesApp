@@ -59,6 +59,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ITransacaoCarteiraMotoristaRepository, TransacaoCarteiraMotoristaRepository>();
             builder.Services.AddScoped<ISolicitacaoSaqueRepository, SolicitacaoSaqueRepository>();
             builder.Services.AddScoped<IMensagemChatRepository, MensagemChatRepository>();
+            builder.Services.AddScoped<IAvaliacaoRepository, AvaliacaoRepository>();
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
 
             // Cliente HTTP da API Banking do Banco Inter (envio de Pix pros saques dos motoristas —
@@ -109,6 +110,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<EnderecoAutocompleteService>();
             builder.Services.AddScoped<VerificacaoSmsService>();
             builder.Services.AddScoped<MensagemChatService>();
+            builder.Services.AddScoped<AvaliacaoService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddScoped<ISmsService, TwilioSmsService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
