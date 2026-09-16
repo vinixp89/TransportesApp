@@ -98,6 +98,21 @@ namespace TransportesApp.Api.Controllers
             return $"motoristas/{motoristaId}/{nomeArquivo}";
         }
 
+        // Perfil do próprio motorista logado — usado pelo app pra saber se falta completar alguma
+        // etapa do cadastro (termos, telefone) antes de liberar o resto do app (ver
+        // MotoristaResponse.TelefoneVerificado/TermosAceitos).
+        [Authorize(Roles = "Motorista")]
+        [HttpGet("meu-perfil")]
+        public async Task<IActionResult> MeuPerfil()
+        {
+            var motorista = await ObterMotoristaLogadoAsync();
+
+            if (motorista is null)
+                return NotFound();
+
+            return Ok(motorista);
+        }
+
         [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> Listar()
