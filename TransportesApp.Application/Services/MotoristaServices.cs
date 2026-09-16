@@ -99,6 +99,21 @@ namespace TransportesApp.Application.Services
             return motorista?.FotoSelfieUrl;
         }
 
+        // Mesma ideia de ObterCaminhoFotoSelfieAsync, mas pras fotos de veículo/placa — usado pelo
+        // AdminExecutivoController pra deixar o Admin conferir a placa declarada contra a foto de
+        // verdade antes de aprovar a categoria Executivo (ver AssinaturaMotoristaExecutivoService).
+        public async Task<string?> ObterCaminhoFotoVeiculoAsync(Guid motoristaId)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+            return motorista?.FotoVeiculoUrl;
+        }
+
+        public async Task<string?> ObterCaminhoFotoPlacaAsync(Guid motoristaId)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+            return motorista?.FotoPlacaUrl;
+        }
+
         public async Task<IEnumerable<MotoristaResponse>> ListarAsync()
         {
             var motoristas = await _motoristaRepository.ListarAsync();

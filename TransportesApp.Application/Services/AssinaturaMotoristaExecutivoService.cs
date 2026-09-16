@@ -41,10 +41,10 @@ namespace TransportesApp.Application.Services
             return assinatura is null ? null : MapearParaResponse(assinatura);
         }
 
-        // Cria a assinatura como PendentePagamento e devolve a URL pro motorista autorizar a cobrança
-        // recorrente no Mercado Pago — só vira Ativa quando ele confirmar (webhook de preapproval, ver
-        // PagamentosController). A primeira cobrança de verdade só acontece um mês depois (mês de
-        // graça) — quem controla isso é o StartDate mandado pro gateway, não tem job nenhum aqui.
+        // Cria a solicitação como AguardandoAprovacao — NÃO chama o gateway ainda. Placa/modelo/ano
+        // são autodeclarados (ver Motorista.VeiculoElegivelParaExecutivo), então antes de cobrar
+        // qualquer coisa o Admin confere manualmente a foto do carro/placa e aprova ou nega (ver
+        // AprovarAsync/NegarAsync) — só na aprovação a cobrança de verdade é criada no Mercado Pago.
         public async Task<AssinarExecutivoResponse> AssinarAsync(Guid motoristaId, int anoVeiculo, string emailPagador)
         {
             var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId)
@@ -61,7 +61,8 @@ namespace TransportesApp.Application.Services
                 return new AssinarExecutivoResponse(MapearParaResponse(ativa), null);
 
             // Mesma ideia do PlanoService: uma tentativa anterior não concluída é cancelada antes de
-            // criar outra, pra manter só uma assinatura "viva" por vez.
+            // criar outra, pra manter só uma assinatura "viva" por vez. Cobre tanto uma tentativa ainda
+            // em análise quanto uma já aprovada com Preapproval criado (aí cancela lá também).
             var pendente = await _assinaturaRepository.ObterPendentePorMotoristaAsync(motoristaId);
             if (pendente is not null)
             {
@@ -72,37 +73,79 @@ namespace TransportesApp.Application.Services
                 await _assinaturaRepository.AtualizarAsync(pendente);
             }
 
-            var nova = new AssinaturaMotoristaExecutivo(motoristaId);
+            var nova = new AssinaturaMotoristaExecutivo(motoristaId, emailPagador);
             await _assinaturaRepository.AdicionarAsync(nova);
+
+            return new AssinarExecutivoResponse(MapearParaResponse(nova), null);
+        }
+
+        // Fila de revisão do Admin (ver AdminExecutivoController) — junta cada solicitação com os
+        // dados do veículo declarado, pra ele conferir a placa manualmente antes de decidir.
+        public async Task<IEnumerable<SolicitacaoExecutivoAdminResponse>> ListarAguardandoAprovacaoAsync()
+        {
+            var solicitacoes = await _assinaturaRepository.ListarAguardandoAprovacaoAsync();
+            var respostas = new List<SolicitacaoExecutivoAdminResponse>();
+
+            foreach (var solicitacao in solicitacoes)
+            {
+                var motorista = await _motoristaRepository.ObterPorIdAsync(solicitacao.MotoristaId);
+                if (motorista is null)
+                    continue;
+
+                respostas.Add(new SolicitacaoExecutivoAdminResponse(
+                    solicitacao.Id,
+                    motorista.Id,
+                    motorista.PlacaVeiculo,
+                    motorista.ModeloVeiculo,
+                    motorista.AnoVeiculo,
+                    motorista.FotoVeiculoUrl is not null,
+                    motorista.FotoPlacaUrl is not null,
+                    solicitacao.DataInicio
+                ));
+            }
+
+            return respostas;
+        }
+
+        // Chamado pelo Admin depois de conferir a placa/foto manualmente — só aqui a cobrança de
+        // verdade é criada no Mercado Pago (ver AssinarAsync, que só deixa a solicitação pronta).
+        public async Task<AssinaturaMotoristaExecutivoResponse?> AprovarAsync(Guid assinaturaId)
+        {
+            var solicitacao = await _assinaturaRepository.ObterPorIdAsync(assinaturaId);
+            if (solicitacao is null)
+                return null;
 
             var urlRetornoBase = (_configuration["MercadoPago:UrlRetornoFrontend"] ?? "http://localhost:5173").TrimEnd('/');
             var urlRetorno = $"{urlRetornoBase}/pagamentos/retorno";
 
-            PreapprovalCriado preapproval;
-            try
-            {
-                preapproval = await _gateway.CriarPreapprovalAsync(new SolicitacaoPreapproval(
-                    ExternalReference: nova.Id.ToString(),
-                    Descricao: "Assinatura Executivo — Vai na Boa",
-                    Valor: PrecoMensal,
-                    EmailPagador: emailPagador,
-                    PrimeiraCobranca: DateTime.UtcNow.AddMonths(MesesDeGraca),
-                    UrlRetorno: urlRetorno
-                ));
-            }
-            catch (InvalidOperationException)
-            {
-                // Sem isso, uma recusa do gateway (ex: e-mail inválido) deixava a assinatura presa em
-                // PendentePagamento pra sempre — o motorista nunca mais conseguia tentar de novo.
-                nova.Cancelar();
-                await _assinaturaRepository.AtualizarAsync(nova);
-                throw;
-            }
+            var preapproval = await _gateway.CriarPreapprovalAsync(new SolicitacaoPreapproval(
+                ExternalReference: solicitacao.Id.ToString(),
+                Descricao: "Assinatura Executivo — Vai na Boa",
+                Valor: PrecoMensal,
+                EmailPagador: solicitacao.EmailPagador,
+                PrimeiraCobranca: DateTime.UtcNow.AddMonths(MesesDeGraca),
+                UrlRetorno: urlRetorno
+            ));
 
-            nova.RegistrarPreapproval(preapproval.PreapprovalId);
-            await _assinaturaRepository.AtualizarAsync(nova);
+            // Só muda o status DEPOIS do gateway confirmar — se der erro acima, a exceção sobe e a
+            // solicitação continua AguardandoAprovacao, pronta pro Admin tentar aprovar de novo.
+            solicitacao.Aprovar();
+            solicitacao.RegistrarPreapproval(preapproval.PreapprovalId, preapproval.UrlCheckout);
+            await _assinaturaRepository.AtualizarAsync(solicitacao);
 
-            return new AssinarExecutivoResponse(MapearParaResponse(nova), preapproval.UrlCheckout);
+            return MapearParaResponse(solicitacao);
+        }
+
+        public async Task<AssinaturaMotoristaExecutivoResponse?> NegarAsync(Guid assinaturaId, string motivo)
+        {
+            var solicitacao = await _assinaturaRepository.ObterPorIdAsync(assinaturaId);
+            if (solicitacao is null)
+                return null;
+
+            solicitacao.Negar(motivo);
+            await _assinaturaRepository.AtualizarAsync(solicitacao);
+
+            return MapearParaResponse(solicitacao);
         }
 
         public async Task<bool> CancelarAsync(Guid motoristaId)
@@ -167,6 +210,6 @@ namespace TransportesApp.Application.Services
         }
 
         private static AssinaturaMotoristaExecutivoResponse MapearParaResponse(AssinaturaMotoristaExecutivo assinatura)
-            => new(assinatura.Id, PrecoMensal, assinatura.DataInicio, assinatura.Status);
+            => new(assinatura.Id, PrecoMensal, assinatura.DataInicio, assinatura.Status, assinatura.CheckoutUrl, assinatura.MotivoNegacao);
     }
 }

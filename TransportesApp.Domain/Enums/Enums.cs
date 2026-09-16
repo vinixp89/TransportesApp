@@ -97,12 +97,19 @@
 
     // PendentePagamento é o valor 0 (padrão) de propósito, igual os outros enums acima: uma assinatura
     // recém-criada some sempre nesse estado até o gateway confirmar o pagamento — ver AssinaturaPlano.
+    //
+    // AguardandoAprovacao e NegadaAdmin são exclusivos da AssinaturaMotoristaExecutivo (revisão manual
+    // da placa/foto do carro antes de criar a cobrança no gateway — ver
+    // AssinaturaMotoristaExecutivoService.AprovarAsync/NegarAsync); a AssinaturaPlano do Cliente nunca
+    // produz esses dois valores.
     public enum StatusAssinatura
     {
         PendentePagamento,
         Ativa,
         PagamentoRecusado,
-        Cancelada
+        Cancelada,
+        AguardandoAprovacao,
+        NegadaAdmin
     }
 
     // A quem um Pagamento se refere — AssinaturaPlano, RecargaCarteira, AssinaturaMotoristaExecutivo e
