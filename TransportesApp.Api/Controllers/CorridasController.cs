@@ -17,7 +17,14 @@ namespace TransportesApp.Api.Controllers
         private readonly MotoristaService _motoristaService;
         private readonly MensagemChatService _mensagemChatService;
         private readonly AvaliacaoService _avaliacaoService;
+        private readonly VerificacaoFacialService _verificacaoFacialService;
         private readonly IWebHostEnvironment _ambiente;
+
+        // Mesmo limite/extensões de MotoristasController.EnviarFotos, pra selfie de auditoria tirada
+        // ao iniciar/finalizar a corrida.
+        private const long TamanhoMaximoFotoVerificacaoBytes = 8 * 1024 * 1024;
+        private static readonly HashSet<string> ExtensoesFotoVerificacaoAceitas =
+            new(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png" };
 
         public CorridasController(
             CorridaService corridaService,
@@ -25,6 +32,7 @@ namespace TransportesApp.Api.Controllers
             MotoristaService motoristaService,
             MensagemChatService mensagemChatService,
             AvaliacaoService avaliacaoService,
+            VerificacaoFacialService verificacaoFacialService,
             IWebHostEnvironment ambiente)
         {
             _corridaService = corridaService;
@@ -32,6 +40,7 @@ namespace TransportesApp.Api.Controllers
             _motoristaService = motoristaService;
             _mensagemChatService = mensagemChatService;
             _avaliacaoService = avaliacaoService;
+            _verificacaoFacialService = verificacaoFacialService;
             _ambiente = ambiente;
         }
 
@@ -471,6 +480,87 @@ namespace TransportesApp.Api.Controllers
 
             var avaliacoes = await _avaliacaoService.ListarPorCorridaAsync(id);
             return Ok(avaliacoes);
+        }
+
+        // Selfie de auditoria (câmera frontal) tirada pelo motorista ao iniciar/finalizar a corrida —
+        // comparada contra a selfie do cadastro via AWS Rekognition (ver VerificacaoFacialService).
+        // NUNCA bloqueia a viagem: qualquer falha (sem selfie de cadastro, serviço de comparação
+        // fora, foto ilegível) é engolida aqui e sempre devolve 200 — o resultado só é visto pelo
+        // Admin depois, pra auditoria. Foto salva em disco, nunca servida como rota estática pública
+        // (mesmo padrão de MotoristasController.EnviarFotos).
+        [Authorize(Roles = "Motorista")]
+        [HttpPost("{id:guid}/verificacao-facial")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public async Task<IActionResult> RegistrarVerificacaoFacial(Guid id, [FromForm] string momento, [FromForm] IFormFile foto)
+        {
+            var corridaAtual = await _corridaService.ObterPorIdAsync(id);
+
+            if (corridaAtual is null)
+                return NotFound();
+
+            if (!await MotoristaAtribuidoNaCorridaAsync(corridaAtual))
+                return Forbid();
+
+            if (!Enum.TryParse<MomentoVerificacaoFacial>(momento, ignoreCase: true, out var momentoEnum))
+                return BadRequest(new { mensagem = "Momento inválido — use \"Inicio\" ou \"Fim\"." });
+
+            if (foto is null || foto.Length == 0)
+                return BadRequest(new { mensagem = "A foto é obrigatória." });
+
+            if (foto.Length > TamanhoMaximoFotoVerificacaoBytes)
+                return BadRequest(new { mensagem = "A foto passa do limite de 8 MB." });
+
+            if (!ExtensoesFotoVerificacaoAceitas.Contains(Path.GetExtension(foto.FileName)))
+                return BadRequest(new { mensagem = "A foto precisa ser JPG ou PNG." });
+
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var motorista = await _motoristaService.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return NotFound();
+
+            try
+            {
+                var pastaMotorista = Path.Combine(_ambiente.ContentRootPath, "uploads", "verificacoes-faciais", motorista.Id.ToString());
+                Directory.CreateDirectory(pastaMotorista);
+
+                var extensao = Path.GetExtension(foto.FileName).ToLowerInvariant();
+                var nomeArquivo = $"{id}_{momentoEnum}_{DateTime.UtcNow.Ticks}{extensao}";
+                var caminhoCompleto = Path.Combine(pastaMotorista, nomeArquivo);
+
+                byte[] fotoCapturadaBytes;
+                using (var memoryStream = new MemoryStream())
+                {
+                    await foto.CopyToAsync(memoryStream);
+                    fotoCapturadaBytes = memoryStream.ToArray();
+                }
+
+                await System.IO.File.WriteAllBytesAsync(caminhoCompleto, fotoCapturadaBytes);
+
+                var fotoUrlRelativa = $"verificacoes-faciais/{motorista.Id}/{nomeArquivo}";
+
+                byte[]? fotoReferenciaBytes = null;
+                var caminhoSelfieCadastro = await _motoristaService.ObterCaminhoFotoSelfieAsync(motorista.Id);
+
+                if (caminhoSelfieCadastro is not null)
+                {
+                    var caminhoCompletoSelfie = Path.Combine(_ambiente.ContentRootPath, "uploads", caminhoSelfieCadastro);
+
+                    if (System.IO.File.Exists(caminhoCompletoSelfie))
+                        fotoReferenciaBytes = await System.IO.File.ReadAllBytesAsync(caminhoCompletoSelfie);
+                }
+
+                await _verificacaoFacialService.RegistrarAsync(
+                    id, motorista.Id, momentoEnum, fotoUrlRelativa, fotoReferenciaBytes, fotoCapturadaBytes);
+            }
+            catch
+            {
+                // Auditoria: qualquer falha aqui (disco, comparação) nunca deve impedir a viagem.
+            }
+
+            return Ok();
         }
 
         [Authorize(Roles = "Motorista")]

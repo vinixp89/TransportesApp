@@ -37,6 +37,7 @@ namespace TransportesApp.Infrastructure.Data
         public DbSet<SolicitacaoSaque> SolicitacoesSaque => Set<SolicitacaoSaque>();
         public DbSet<MensagemChat> MensagensChat => Set<MensagemChat>();
         public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
+        public DbSet<VerificacaoFacial> VerificacoesFaciais => Set<VerificacaoFacial>();
 
 
        protected override void OnModelCreating(ModelBuilder modelBuilder)

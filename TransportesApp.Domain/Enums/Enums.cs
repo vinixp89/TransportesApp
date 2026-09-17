@@ -178,4 +178,13 @@
         Concluida,
         Rejeitada
     }
+
+    // Momento em que a selfie de verificação facial foi tirada — ver VerificacaoFacial. Sempre em
+    // dupla por corrida (uma no início, outra no fim), mas nunca bloqueante: é auditoria, não trava
+    // a viagem se não bater ou se o serviço de comparação falhar.
+    public enum MomentoVerificacaoFacial
+    {
+        Inicio,
+        Fim
+    }
 }

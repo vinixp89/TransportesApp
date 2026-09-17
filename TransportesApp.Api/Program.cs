@@ -14,6 +14,7 @@ using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
 using TransportesApp.Infrastructure.Email;
+using TransportesApp.Infrastructure.Gateways;
 using TransportesApp.Infrastructure.Maps;
 using TransportesApp.Infrastructure.Pagamentos;
 using TransportesApp.Infrastructure.Repositories;
@@ -60,7 +61,9 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<ISolicitacaoSaqueRepository, SolicitacaoSaqueRepository>();
             builder.Services.AddScoped<IMensagemChatRepository, MensagemChatRepository>();
             builder.Services.AddScoped<IAvaliacaoRepository, AvaliacaoRepository>();
+            builder.Services.AddScoped<IVerificacaoFacialRepository, VerificacaoFacialRepository>();
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
+            builder.Services.AddScoped<IFaceMatchGateway, AwsRekognitionFaceMatchGateway>();
 
             // Cliente HTTP da API Banking do Banco Inter (envio de Pix pros saques dos motoristas —
             // ver InterPagamentoGateway). Base address troca entre produção e sandbox pela config
@@ -111,6 +114,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<VerificacaoSmsService>();
             builder.Services.AddScoped<MensagemChatService>();
             builder.Services.AddScoped<AvaliacaoService>();
+            builder.Services.AddScoped<VerificacaoFacialService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddScoped<ISmsService, TwilioSmsService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
