@@ -48,6 +48,13 @@ services:
       Inter__ChavePath: /app/inter-certs/chave.key
       Inter__ContaCorrente: ${INTER_CONTA_CORRENTE}
       Features__CarteiraMotoristaLiberada: ${FEATURE_CARTEIRA_MOTORISTA_LIBERADA}
+      # Reconhecimento facial (auditoria de selfie do motorista, ver AwsRekognitionFaceMatchGateway) —
+      # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY são lidos automaticamente pelo AWSSDK (nomes padrão da
+      # cadeia de credenciais, não precisam do prefixo Aws__). Enquanto ficarem vazios, a comparação
+      # simplesmente falha e fica registrada como "não verificada" — nunca derruba a API.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      Aws__Region: ${AWS_REGION}
     # Só interna à rede do Docker agora que o Caddy (HTTPS) é a porta de entrada pública — o
     # tráfego chega em api:8080 via reverse_proxy do Caddy, não precisa mais expor direto.
     expose:
