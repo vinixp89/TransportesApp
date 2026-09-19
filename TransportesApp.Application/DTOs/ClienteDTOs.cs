@@ -30,4 +30,12 @@
       // autenticado dedicado, nunca pelo caminho cru do arquivo.
       bool TemFotoSelfie
   );
+
+  // Dados do cliente que o MOTORISTA pode ver enquanto está com uma corrida atribuída a ele —
+  // espelha MotoristaDaCorridaResponse, mas do lado do cliente: deliberadamente sem CPF/telefone/
+  // e-mail (ver CorridasController.ObterClienteDaCorrida).
+  public record ClienteDaCorridaResponse(
+      string Nome,
+      double? AvaliacaoMedia
+  );
 }

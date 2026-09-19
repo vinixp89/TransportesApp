@@ -314,10 +314,33 @@ namespace TransportesApp.Api.Controllers
                 return NotFound();
 
             return Ok(new MotoristaDaCorridaResponse(
+                motorista.Nome,
                 motorista.PlacaVeiculo,
                 motorista.ModeloVeiculo,
                 motorista.AvaliacaoMeida,
                 motorista.FotosEnviadas));
+        }
+
+        // Espelha ObterMotoristaDaCorrida acima, mas do lado do MOTORISTA: nome e avaliação do
+        // cliente atribuído a essa corrida, restrito ao motorista atribuído a ela.
+        [Authorize(Roles = "Motorista")]
+        [HttpGet("{id:guid}/cliente")]
+        public async Task<IActionResult> ObterClienteDaCorrida(Guid id)
+        {
+            var corrida = await _corridaService.ObterPorIdAsync(id);
+
+            if (corrida is null)
+                return NotFound();
+
+            if (!await MotoristaAtribuidoNaCorridaAsync(corrida))
+                return Forbid();
+
+            var cliente = await _clienteService.ObterPorIdAsync(corrida.ClienteId);
+
+            if (cliente is null)
+                return NotFound();
+
+            return Ok(new ClienteDaCorridaResponse(cliente.Nome, cliente.AvaliacaoMedia));
         }
 
         // Foto (selfie) do motorista atribuído, servida como binário — mesma autorização do endpoint

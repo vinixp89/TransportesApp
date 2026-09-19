@@ -44,6 +44,7 @@ namespace TransportesApp.Application.DTOs
     // deliberadamente sem CPF/CNH/telefone (ver CorridasController.ObterMotoristaDaCorrida). A foto
     // em si não vem aqui (é binário) — TemFoto só indica se dá pra chamar o endpoint que a serve.
     public record MotoristaDaCorridaResponse(
+        string Nome,
         string PlacaVeiculo,
         string ModeloVeiculo,
         double AvaliacaoMedia,
