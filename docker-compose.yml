@@ -48,6 +48,11 @@ services:
       Inter__ChavePath: /app/inter-certs/chave.key
       Inter__ContaCorrente: ${INTER_CONTA_CORRENTE}
       Features__CarteiraMotoristaLiberada: ${FEATURE_CARTEIRA_MOTORISTA_LIBERADA}
+      # SMS de verificação de telefone (Motorista/Cliente, ver TwilioSmsService) — sem isso, ninguém
+      # consegue passar da tela "Confirme seu telefone" e o app fica travado ali pra sempre.
+      Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}
+      Twilio__AuthToken: ${TWILIO_AUTH_TOKEN}
+      Twilio__NumeroRemetente: ${TWILIO_NUMERO_REMETENTE}
       # Reconhecimento facial (auditoria de selfie do motorista, ver AwsRekognitionFaceMatchGateway) —
       # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY são lidos automaticamente pelo AWSSDK (nomes padrão da
       # cadeia de credenciais, não precisam do prefixo Aws__). Enquanto ficarem vazios, a comparação
