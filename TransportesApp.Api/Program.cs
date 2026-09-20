@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using MercadoPago.Config;
@@ -205,6 +207,42 @@ namespace TransportesApp.Api
                     ValidIssuer = jwtIssuer,
                     ValidAudience = jwtAudience,
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey!))
+                };
+
+                // Sessão única: todo token carrega o Guid da sessão que estava vigente quando ele foi
+                // emitido (ver AuthController.GerarTokenAsync). Se um login mais novo tiver sido feito
+                // depois (em outro aparelho), o Usuario.SessaoAtualId já mudou — esse token antigo é
+                // recusado (401) e o app força o logout. Também aproveita a mesma requisição pra
+                // atualizar UltimoAcessoEm (com throttle de 1 min, ver Usuario.cs) pro painel do Admin.
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        var sessaoClaim = context.Principal?.FindFirstValue("sessao");
+                        var usuarioIdClaim = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                            ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                        if (sessaoClaim is null || usuarioIdClaim is null || !Guid.TryParse(usuarioIdClaim, out var usuarioId))
+                        {
+                            context.Fail("Token sem sessão.");
+                            return;
+                        }
+
+                        var userManager = context.HttpContext.RequestServices.GetRequiredService<UserManager<Usuario>>();
+                        var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
+
+                        if (usuario is null || usuario.SessaoAtualId is null || usuario.SessaoAtualId.ToString() != sessaoClaim)
+                        {
+                            context.Fail("Sessão encerrada — login realizado em outro dispositivo.");
+                            return;
+                        }
+
+                        if (usuario.UltimoAcessoEm is null || DateTime.UtcNow - usuario.UltimoAcessoEm > TimeSpan.FromMinutes(1))
+                        {
+                            usuario.UltimoAcessoEm = DateTime.UtcNow;
+                            await userManager.UpdateAsync(usuario);
+                        }
+                    }
                 };
             });
 

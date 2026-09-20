@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TransportesApp.Application.DTOs;
 using TransportesApp.Application.Services;
+using TransportesApp.Domain.Enums;
 
 namespace TransportesApp.Api.Controllers
 {
@@ -24,9 +25,9 @@ namespace TransportesApp.Api.Controllers
         // usado pra montar a tela "pacotes disponíveis" antes de comprar. Não depende de cliente
         // cadastrado, só de estar autenticado (herda o [Authorize] da classe).
         [HttpGet("catalogo")]
-        public IActionResult Catalogo()
+        public IActionResult Catalogo([FromQuery] CategoriaCorrida categoria = CategoriaCorrida.Normal)
         {
-            var catalogo = _pacoteCorridasService.ObterCatalogo();
+            var catalogo = _pacoteCorridasService.ObterCatalogo(categoria);
             return Ok(catalogo);
         }
 

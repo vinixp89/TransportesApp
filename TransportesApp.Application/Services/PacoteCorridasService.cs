@@ -23,13 +23,14 @@ namespace TransportesApp.Application.Services
         }
 
         // Não depende do repositório — é só a tabela de preços do domínio, montada pra exibição.
-        public IEnumerable<CatalogoPacoteResponse> ObterCatalogo()
+        public IEnumerable<CatalogoPacoteResponse> ObterCatalogo(CategoriaCorrida categoria = CategoriaCorrida.Normal)
         {
             return FaixaDistancia.ListarTodas().Select(faixa => new CatalogoPacoteResponse(
                 faixa.Cor,
-                faixa.PrecoAvulso,
+                categoria,
+                faixa.ObterPreco(categoria),
                 FaixaDistancia.TamanhosPacoteDisponiveis
-                    .Select(quantidade => new TamanhoPacoteResponse(quantidade, faixa.ObterPrecoPacote(quantidade)))
+                    .Select(quantidade => new TamanhoPacoteResponse(quantidade, faixa.ObterPrecoPacote(quantidade, categoria)))
                     .ToList()
             ));
         }
@@ -64,7 +65,8 @@ namespace TransportesApp.Application.Services
         {
             var percentualDesconto = await ObterPercentualDescontoAsync(clienteId);
 
-            var pacote = new PacoteCorridas(clienteId, request.Faixa, request.Quantidade, percentualDesconto);
+            var pacote = new PacoteCorridas(
+                clienteId, request.Faixa, request.Quantidade, percentualDesconto, categoria: request.Categoria);
 
             await _pacoteCorridasRepository.AdicionarAsync(pacote);
 
@@ -105,6 +107,7 @@ namespace TransportesApp.Application.Services
                 pacote.Id,
                 pacote.ClienteId,
                 pacote.Faixa,
+                pacote.Categoria,
                 pacote.QuantidadeTotal,
                 pacote.QuantidadeUsada,
                 pacote.QuantidadeRestante,

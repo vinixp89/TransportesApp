@@ -31,6 +31,9 @@ namespace TransportesApp.Infrastructure.Data.Configurations
                 .IsRequired()
                 .HasMaxLength(20);
 
+            builder.HasIndex(c => c.Telefone)
+                .IsUnique();
+
             builder.Property(c => c.Email)
                 .IsRequired()
                 .HasMaxLength(150);

@@ -52,10 +52,11 @@ namespace TransportesApp.Application.Services
             if (request.TipoConsumo == TipoConsumo.Avulsa)
                 throw new InvalidOperationException("Corrida avulsa precisa ser iniciada via /Corridas/avulsa (fluxo de pagamento).");
 
-            // Categoria Executivo só existe como corrida avulsa por enquanto — pacotes (preço fixado na
-            // compra) e o benefício de corrida grátis do plano continuam exclusivos da categoria Normal.
-            if (request.Categoria == CategoriaCorrida.Executivo)
-                throw new InvalidOperationException("A categoria Executivo só está disponível para corridas avulsas por enquanto (sem pacote ou benefício de plano).");
+            // Benefício de corrida grátis do plano continua exclusivo da categoria Normal — pacote
+            // Executivo já é permitido desde o #27 (ver ValidarPacoteAsync, que confere se o pacote é
+            // da mesma categoria da corrida pedida).
+            if (request.Categoria == CategoriaCorrida.Executivo && request.TipoConsumo == TipoConsumo.BeneficioPlano)
+                throw new InvalidOperationException("A categoria Executivo não está disponível para o benefício de corrida grátis do plano.");
 
             var rota = await CalcularRotaAsync(request.Origem, request.Destino);
 
@@ -265,6 +266,11 @@ namespace TransportesApp.Application.Services
                 throw new InvalidOperationException(
                     $"Este pacote é da faixa {pacote.Faixa}, mas a corrida solicitada caiu na faixa {faixa.Cor}. " +
                     "Use um pacote da faixa correta ou solicite como corrida avulsa.");
+
+            if (pacote.Categoria != request.Categoria)
+                throw new InvalidOperationException(
+                    $"Este pacote é da categoria {pacote.Categoria}, mas a corrida solicitada é {request.Categoria}. " +
+                    "Use um pacote da categoria correta ou solicite como corrida avulsa.");
 
             if (!pacote.TemCorridaDisponivel)
                 throw new InvalidOperationException("Este pacote não tem corridas disponíveis. Compre um novo pacote ou solicite como corrida avulsa.");

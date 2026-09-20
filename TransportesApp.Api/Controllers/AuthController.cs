@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -123,6 +125,14 @@ namespace TransportesApp.Api.Controllers
                 // Perfil inválido: desfaz o usuário criado pra não deixar um cadastro pela metade.
                 await _userManager.DeleteAsync(usuario);
                 return BadRequest(new { mensagem = ex.Message });
+            }
+            catch (DbUpdateException ex) when (EhViolacaoDeIndiceUnico(ex))
+            {
+                // CPF ou telefone já usado em outra conta (ver índices únicos em
+                // ClienteConfigurations/MotoristaConfiguration) — mesma limpeza do ArgumentException
+                // acima, pra não deixar um usuário Identity órfão sem perfil.
+                await _userManager.DeleteAsync(usuario);
+                return BadRequest(new { mensagem = "CPF ou telefone já cadastrado em outra conta." });
             }
 
             try
@@ -269,6 +279,29 @@ namespace TransportesApp.Api.Controllers
             return Ok(token);
         }
 
+        // Troca de senha estando logado (diferente do fluxo "esqueci minha senha" acima, que usa
+        // código por e-mail) — exige confirmar a senha atual. Comum a Cliente e Motorista, mesma tela
+        // de configurações da conta nos 2 apps.
+        [Authorize(Roles = "Cliente,Motorista")]
+        [HttpPost("trocar-senha")]
+        public async Task<IActionResult> TrocarSenha([FromBody] TrocarSenhaRequest request)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            var usuario = await _userManager.FindByIdAsync(usuarioId.ToString());
+
+            if (usuario is null)
+                return NotFound();
+
+            var resultado = await _userManager.ChangePasswordAsync(usuario, request.SenhaAtual, request.NovaSenha);
+
+            if (!resultado.Succeeded)
+                return BadRequest(resultado.Errors.Select(e => e.Description));
+
+            return Ok(new { mensagem = "Senha alterada com sucesso." });
+        }
+
         // Exclusão de conta a pedido do cliente (ver tela "Configurações da conta" no app). Anonimiza
         // os dados pessoais do Cliente (ver Cliente.Excluir) e bloqueia o login definitivamente — não
         // apaga a linha do Identity nem os dados financeiros/histórico de corridas (ficam retidos e
@@ -333,17 +366,32 @@ namespace TransportesApp.Api.Controllers
             await _userManager.SetLockoutEndDateAsync(usuario, DateTimeOffset.MaxValue);
         }
 
+        // SqlState 23505 = unique_violation no Postgres — é assim que a exceção chega quando um dos
+        // índices únicos de CPF/Telefone (ver ClienteConfigurations/MotoristaConfiguration) barra a
+        // inserção. Qualquer outro DbUpdateException segue sem tratamento especial (cai no handler
+        // genérico de exceções).
+        private static bool EhViolacaoDeIndiceUnico(DbUpdateException ex)
+            => ex.InnerException is PostgresException { SqlState: "23505" };
+
         private async Task<AuthResponse> GerarTokenAsync(Usuario usuario)
         {
             var jwtKey = _configuration["Jwt:Key"];
             var jwtIssuer = _configuration["Jwt:Issuer"];
             var jwtAudience = _configuration["Jwt:Audience"];
 
+            // Sessão única: todo token novo derruba qualquer sessão anterior dessa conta (ver
+            // Usuario.SessaoAtualId e Program.cs, JwtBearerEvents.OnTokenValidated).
+            var sessaoId = Guid.NewGuid();
+            usuario.SessaoAtualId = sessaoId;
+            usuario.UltimoAcessoEm = DateTime.UtcNow;
+            await _userManager.UpdateAsync(usuario);
+
             var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, usuario.Id.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, usuario.Email!),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim("sessao", sessaoId.ToString())
             };
 
             var roles = await _userManager.GetRolesAsync(usuario);

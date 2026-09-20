@@ -18,6 +18,11 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(p => p.Faixa)
                 .IsRequired();
 
+            // Default 0 (Normal) protege pacotes já comprados antes dessa coluna existir.
+            builder.Property(p => p.Categoria)
+                .IsRequired()
+                .HasDefaultValue(Domain.Enums.CategoriaCorrida.Normal);
+
             builder.Property(p => p.QuantidadeTotal)
                 .IsRequired();
 

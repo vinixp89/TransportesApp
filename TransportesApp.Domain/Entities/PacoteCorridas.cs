@@ -10,6 +10,11 @@ namespace TransportesApp.Domain.Entities
         public Guid Id { get; private set; }
         public Guid ClienteId { get; private set; }
         public CorFaixa Faixa { get; private set; }
+        // Executivo desde a adição do #27 — antes disso, todo pacote era implicitamente Normal (valor
+        // 0 do enum), o que preserva o significado de pacotes já comprados sem precisar de migração
+        // de dados. Um pacote Executivo só pode ser usado numa corrida Executivo da mesma faixa (ver
+        // CorridaService.ValidarPacoteAsync).
+        public CategoriaCorrida Categoria { get; private set; }
         public int QuantidadeTotal { get; private set; }
         public int QuantidadeUsada { get; private set; }
         public decimal PrecoPago { get; private set; }
@@ -39,7 +44,9 @@ namespace TransportesApp.Domain.Entities
         // registrado sempre reflita exatamente o que foi cobrado. pago=false pra compra via
         // Mercado Pago (ver ConfirmarPagamento) — nunca deve ficar exposto num endpoint que cria o
         // pacote já utilizável sem cobrar nada.
-        public PacoteCorridas(Guid clienteId, CorFaixa faixa, int quantidade, decimal percentualDesconto = 0m, bool pago = false)
+        public PacoteCorridas(
+            Guid clienteId, CorFaixa faixa, int quantidade, decimal percentualDesconto = 0m, bool pago = false,
+            CategoriaCorrida categoria = CategoriaCorrida.Normal)
         {
             if (!FaixaDistancia.TamanhosPacoteDisponiveis.Contains(quantidade))
                 throw new ArgumentException(
@@ -53,11 +60,12 @@ namespace TransportesApp.Domain.Entities
             Id = Guid.NewGuid();
             ClienteId = clienteId;
             Faixa = faixa;
+            Categoria = categoria;
             QuantidadeTotal = quantidade;
             QuantidadeUsada = 0;
             // Preço fica travado no momento da compra — se o preço avulso da faixa ou o plano do
             // cliente mudarem depois, não afeta pacotes já comprados.
-            PrecoPago = Math.Round(faixaDistancia.ObterPrecoPacote(quantidade) * (1 - percentualDesconto), 2, MidpointRounding.AwayFromZero);
+            PrecoPago = Math.Round(faixaDistancia.ObterPrecoPacote(quantidade, categoria) * (1 - percentualDesconto), 2, MidpointRounding.AwayFromZero);
             DataCompra = DateTime.UtcNow;
             Pago = pago;
         }

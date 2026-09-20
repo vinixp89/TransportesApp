@@ -33,15 +33,15 @@ namespace TransportesApp.Domain.ValueObjects
 
         public decimal ObterPreco(CategoriaCorrida categoria) => categoria == CategoriaCorrida.Executivo ? PrecoAvulsoExecutivo : PrecoAvulso;
 
-        // Preço do pacote é proporcional ao avulso (sem desconto) — a margem por corrida já é enxuta (15%),
-        // então dar desconto em pacote cortaria direto na margem.
-        public decimal ObterPrecoPacote(int quantidade)
+        // Preço do pacote é proporcional ao avulso da categoria (sem desconto) — a margem por corrida
+        // já é enxuta (15%), então dar desconto em pacote cortaria direto na margem.
+        public decimal ObterPrecoPacote(int quantidade, CategoriaCorrida categoria = CategoriaCorrida.Normal)
         {
             if (!TamanhosPacoteDisponiveis.Contains(quantidade))
                 throw new ArgumentException(
                     $"Pacote de {quantidade} corridas não é um tamanho disponível. Tamanhos válidos: {string.Join(", ", TamanhosPacoteDisponiveis)}.");
 
-            return PrecoAvulso * quantidade;
+            return ObterPreco(categoria) * quantidade;
         }
 
         private static readonly List<FaixaDistancia> Faixas = new()
