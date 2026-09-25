@@ -18,11 +18,16 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(p => p.Faixa)
                 .IsRequired();
 
+            builder.Property(p => p.Campanha)
+                .IsRequired();
+
             builder.Property(p => p.DataConcedida)
                 .IsRequired();
 
-            // Um cliente só pode receber a promoção uma vez.
-            builder.HasIndex(p => p.ClienteId)
+            // Um cliente só pode receber cada campanha uma vez — mas campanhas diferentes (ver
+            // CampanhaPromocional) são independentes entre si, então o índice único é composto, não
+            // só por ClienteId.
+            builder.HasIndex(p => new { p.ClienteId, p.Campanha })
                 .IsUnique();
 
             builder.HasOne<Cliente>()

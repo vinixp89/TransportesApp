@@ -77,6 +77,7 @@ namespace TransportesApp.Api.Controllers
                     try
                     {
                         await _promocaoLancamentoService.ConcederSeElegivelAsync(cliente.Id);
+                        await _promocaoLancamentoService.ConcederOutubroSeElegivelAsync(cliente.Id);
                     }
                     catch (Exception ex)
                     {

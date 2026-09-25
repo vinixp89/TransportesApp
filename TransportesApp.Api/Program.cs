@@ -64,6 +64,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<IMensagemChatRepository, MensagemChatRepository>();
             builder.Services.AddScoped<IAvaliacaoRepository, AvaliacaoRepository>();
             builder.Services.AddScoped<IVerificacaoFacialRepository, VerificacaoFacialRepository>();
+            builder.Services.AddScoped<IAvisoRepository, AvisoRepository>();
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
             builder.Services.AddScoped<IFaceMatchGateway, AwsRekognitionFaceMatchGateway>();
 
@@ -117,6 +118,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<MensagemChatService>();
             builder.Services.AddScoped<AvaliacaoService>();
             builder.Services.AddScoped<VerificacaoFacialService>();
+            builder.Services.AddScoped<AvisoService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddScoped<ISmsService, TwilioSmsService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();

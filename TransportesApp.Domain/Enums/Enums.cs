@@ -187,4 +187,15 @@
         Inicio,
         Fim
     }
+
+    // Lancamento é a promoção original (10 vagas, faixa Amarela, sem data de início — ver
+    // PromocaoLancamentoService). Faixa100Outubro2026 foi adicionada depois (por isso fica por
+    // último, valor 1, e não mexe nos valores já gravados no banco): 100 vagas, faixa Azul, só
+    // conta cadastros feitos a partir de 01/10/2026. Cada campanha tem sua própria contagem de
+    // vagas (ver PromocaoLancamentoRepository).
+    public enum CampanhaPromocional
+    {
+        Lancamento,
+        Faixa100Outubro2026
+    }
 }

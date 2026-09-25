@@ -24,5 +24,14 @@ namespace TransportesApp.Api.Controllers
             var status = await _promocaoLancamentoService.ObterStatusAsync();
             return Ok(status);
         }
+
+        // Mesma ideia, campanha de 01/10/2026 — ver PromocaoLancamentoService.ObterStatusOutubroAsync.
+        [AllowAnonymous]
+        [HttpGet("outubro")]
+        public async Task<IActionResult> Outubro()
+        {
+            var status = await _promocaoLancamentoService.ObterStatusOutubroAsync();
+            return Ok(status);
+        }
     }
 }
