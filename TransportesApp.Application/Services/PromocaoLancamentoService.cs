@@ -20,12 +20,12 @@ namespace TransportesApp.Application.Services
         public const int LimiteVagas = 10;
         public const CorFaixa FaixaPromocional = CorFaixa.Amarela;
 
-        // Campanha de 01/10/2026: só concede pra cadastros feitos a partir dessa data (quem já se
+        // Campanha da faixa Azul: só concede pra cadastros feitos a partir dessa data (quem já se
         // cadastrou antes não recebe — ver ConcederOutubroSeElegivelAsync). Data em UTC porque é
         // assim que DataCadastro/DateTime.UtcNow são gravados em todo o resto do sistema.
         public const int LimiteVagasOutubro = 100;
         public const CorFaixa FaixaPromocionalOutubro = CorFaixa.Azul;
-        public static readonly DateTime DataInicioOutubro = new(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        public static readonly DateTime DataInicioOutubro = new(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
 
         private readonly IPromocaoLancamentoRepository _promocaoRepository;
         private readonly IPacoteCorridasRepository _pacoteCorridasRepository;
