@@ -19,6 +19,10 @@ namespace TransportesApp.Application.DTOs
 
     public record SolicitacaoSaqueResponse(
         Guid Id,
+        Guid MotoristaId,
+        string MotoristaNome,
+        string MotoristaCpf,
+        string MotoristaTelefone,
         decimal Valor,
         TipoSaque Tipo,
         string? ChavePix,

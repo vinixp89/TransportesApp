@@ -20,17 +20,20 @@ namespace TransportesApp.Application.Services
         private readonly ITransacaoCarteiraMotoristaRepository _transacaoRepository;
         private readonly ISolicitacaoSaqueRepository _solicitacaoRepository;
         private readonly IGatewayPagamentoSaque _gatewayPagamentoSaque;
+        private readonly IMotoristaRepository _motoristaRepository;
 
         public CarteiraMotoristaService(
             ICarteiraMotoristaRepository carteiraRepository,
             ITransacaoCarteiraMotoristaRepository transacaoRepository,
             ISolicitacaoSaqueRepository solicitacaoRepository,
-            IGatewayPagamentoSaque gatewayPagamentoSaque)
+            IGatewayPagamentoSaque gatewayPagamentoSaque,
+            IMotoristaRepository motoristaRepository)
         {
             _carteiraRepository = carteiraRepository;
             _transacaoRepository = transacaoRepository;
             _solicitacaoRepository = solicitacaoRepository;
             _gatewayPagamentoSaque = gatewayPagamentoSaque;
+            _motoristaRepository = motoristaRepository;
         }
 
         public async Task<CarteiraMotoristaResponse> ObterOuCriarAsync(Guid motoristaId)
@@ -90,13 +93,13 @@ namespace TransportesApp.Application.Services
                 carteira.Id, TipoTransacaoCarteiraMotorista.DebitoSaque, request.Valor, $"Saque solicitado via {descricaoTipo}");
             await _transacaoRepository.AdicionarAsync(transacao);
 
-            return MapearParaResponseSaque(solicitacao);
+            return await MapearParaResponseSaqueAsync(solicitacao);
         }
 
         public async Task<IEnumerable<SolicitacaoSaqueResponse>> ListarMinhasSolicitacoesAsync(Guid motoristaId)
         {
             var solicitacoes = await _solicitacaoRepository.ListarPorMotoristaIdAsync(motoristaId);
-            return solicitacoes.Select(MapearParaResponseSaque);
+            return await Task.WhenAll(solicitacoes.Select(MapearParaResponseSaqueAsync));
         }
 
         // A partir daqui, operações de Admin — processar o saque de verdade (fora do app) e refletir
@@ -104,7 +107,7 @@ namespace TransportesApp.Application.Services
         public async Task<IEnumerable<SolicitacaoSaqueResponse>> ListarPendentesAsync()
         {
             var solicitacoes = await _solicitacaoRepository.ListarPendentesAsync();
-            return solicitacoes.Select(MapearParaResponseSaque);
+            return await Task.WhenAll(solicitacoes.Select(MapearParaResponseSaqueAsync));
         }
 
         public async Task<SolicitacaoSaqueResponse?> ConcluirSaqueAsync(Guid solicitacaoId)
@@ -138,7 +141,7 @@ namespace TransportesApp.Application.Services
             solicitacao.Concluir();
             await _solicitacaoRepository.AtualizarAsync(solicitacao);
 
-            return MapearParaResponseSaque(solicitacao);
+            return await MapearParaResponseSaqueAsync(solicitacao);
         }
 
         // Rejeitar devolve o valor pro saldo do motorista — o débito no pedido foi só uma reserva.
@@ -160,7 +163,7 @@ namespace TransportesApp.Application.Services
                 carteira.Id, TipoTransacaoCarteiraMotorista.EstornoSaque, solicitacao.Valor, $"Saque rejeitado: {motivo}");
             await _transacaoRepository.AdicionarAsync(transacao);
 
-            return MapearParaResponseSaque(solicitacao);
+            return await MapearParaResponseSaqueAsync(solicitacao);
         }
 
         private async Task<CarteiraMotorista> ObterOuCriarEntidadeAsync(Guid motoristaId)
@@ -181,10 +184,16 @@ namespace TransportesApp.Application.Services
             return new CarteiraMotoristaResponse(carteira.Id, carteira.MotoristaId, carteira.Saldo, ValorMinimoSaque, carteira.DataCriacao);
         }
 
-        private static SolicitacaoSaqueResponse MapearParaResponseSaque(SolicitacaoSaque s)
+        // Motorista buscado à parte (não vem junto na entidade SolicitacaoSaque) — pro Admin
+        // conseguir ver quem é e pra qual conta/chave está indo o dinheiro sem precisar abrir outra
+        // tela. Volume de saques pendentes é baixo, então N+1 aqui não é um problema de performance.
+        private async Task<SolicitacaoSaqueResponse> MapearParaResponseSaqueAsync(SolicitacaoSaque s)
         {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(s.MotoristaId);
+
             return new SolicitacaoSaqueResponse(
-                s.Id, s.Valor, s.Tipo, s.ChavePix, s.Banco, s.Agencia, s.Conta, s.TipoConta,
+                s.Id, s.MotoristaId, motorista?.Nome ?? "—", motorista?.Cpf ?? "—", motorista?.Telefone ?? "—",
+                s.Valor, s.Tipo, s.ChavePix, s.Banco, s.Agencia, s.Conta, s.TipoConta,
                 s.Status, s.DataSolicitacao, s.DataProcessamento, s.MotivoRejeicao);
         }
     }
