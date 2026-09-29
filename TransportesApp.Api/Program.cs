@@ -65,6 +65,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<IAvaliacaoRepository, AvaliacaoRepository>();
             builder.Services.AddScoped<IVerificacaoFacialRepository, VerificacaoFacialRepository>();
             builder.Services.AddScoped<IAvisoRepository, AvisoRepository>();
+            builder.Services.AddScoped<IPushTokenRepository, PushTokenRepository>();
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
             builder.Services.AddScoped<IFaceMatchGateway, AwsRekognitionFaceMatchGateway>();
 
@@ -119,9 +120,17 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<AvaliacaoService>();
             builder.Services.AddScoped<VerificacaoFacialService>();
             builder.Services.AddScoped<AvisoService>();
+            builder.Services.AddScoped<PushNotificationService>();
             builder.Services.AddScoped<IEmailService, SmtpEmailService>();
             builder.Services.AddScoped<ISmsService, TwilioSmsService>();
             builder.Services.AddHttpClient<IMapsService, GoogleMapsService>();
+
+            // Cliente HTTP do serviço de push do Expo — usado pra mandar notificação que chega mesmo
+            // com o app fechado (ver ExpoPushGateway e PushNotificationService).
+            builder.Services.AddHttpClient<IExpoPushGateway, ExpoPushGateway>(client =>
+            {
+                client.BaseAddress = new Uri("https://exp.host");
+            });
 
             // Access Token do Mercado Pago é lido uma vez aqui no startup (via User Secrets:
             // "MercadoPago:AccessToken") e guardado como estado estático do SDK — ver MercadoPagoGateway.

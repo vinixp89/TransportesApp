@@ -39,6 +39,7 @@ namespace TransportesApp.Infrastructure.Data
         public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
         public DbSet<VerificacaoFacial> VerificacoesFaciais => Set<VerificacaoFacial>();
         public DbSet<Aviso> Avisos => Set<Aviso>();
+        public DbSet<PushToken> PushTokens => Set<PushToken>();
 
 
        protected override void OnModelCreating(ModelBuilder modelBuilder)
