@@ -8,7 +8,7 @@ using TransportesApp.Domain.Enums;
 namespace TransportesApp.Api.Controllers
 {
     [ApiController]
-    [Route("[controller]")]
+    [Route("api/[controller]")]
     [Authorize]
     public class PushTokensController : ControllerBase
     {

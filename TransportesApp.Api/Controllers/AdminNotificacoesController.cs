@@ -6,7 +6,7 @@ using TransportesApp.Application.Services;
 namespace TransportesApp.Api.Controllers
 {
     [ApiController]
-    [Route("admin/notificacoes")]
+    [Route("api/admin/notificacoes")]
     [Authorize(Roles = "Admin")]
     public class AdminNotificacoesController : ControllerBase
     {
