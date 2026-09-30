@@ -43,6 +43,14 @@ namespace TransportesApp.Domain.Entities
 
         public DateTime DataCadastro { get; private set; }
 
+        // Situação disciplinar da conta (ver Suspender/Banir/Reativar) — BloqueadoAte só é relevante
+        // quando StatusConta é Suspensa: uma data futura é suspensão temporária (expira sozinha,
+        // sem ação do Admin — ver MotoristaService.VerificarBloqueioAsync), null é "definitivamente".
+        // MotivoBloqueio é mostrado pro motorista na tela de login enquanto a conta estiver bloqueada.
+        public StatusContaMotorista StatusConta { get; private set; }
+        public DateTime? BloqueadoAte { get; private set; }
+        public string? MotivoBloqueio { get; private set; }
+
         // Idade máxima aceita pro veículo no cadastro comum — mais permissiva que os 3 anos exigidos
         // pra assinar a categoria Executivo (ver VeiculoElegivelParaExecutivo).
         public const int IdadeMaximaVeiculoAnos = 12;
@@ -85,6 +93,7 @@ namespace TransportesApp.Domain.Entities
             ModeloVeiculo = modeloVeiculo;
             Endereco = endereco;
             Status = StatusMotorista.Offline;
+            StatusConta = StatusContaMotorista.Ativa;
             AvaliacaoMedia = 5.0;
             DataCadastro = DateTime.UtcNow;
             AnoVeiculo = anoVeiculo;
@@ -146,6 +155,42 @@ namespace TransportesApp.Domain.Entities
         {
             TermosAceitos = true;
             DataAceiteTermos = DateTime.UtcNow;
+        }
+
+        // Suspensão temporária (suspensoAte informado, ex: daqui 7 dias) ou por tempo indeterminado
+        // (suspensoAte null — o Admin escolheu "definitivamente") — usada quando o motorista viola
+        // algum termo do app. Diferente de Banir: aqui a conta pode voltar a funcionar sozinha quando
+        // o prazo passar, sem o Admin precisar reativar manualmente.
+        public void Suspender(string motivo, DateTime? suspensoAte)
+        {
+            if (string.IsNullOrWhiteSpace(motivo))
+                throw new ArgumentException("Informe o motivo da suspensão.");
+
+            StatusConta = StatusContaMotorista.Suspensa;
+            BloqueadoAte = suspensoAte;
+            MotivoBloqueio = motivo;
+        }
+
+        // Exclusão por violação — diferente de Excluir() acima (que é a exclusão voluntária do
+        // próprio motorista, com anonimização): aqui os dados pessoais NÃO são apagados, porque o
+        // Admin pode precisar deles depois (recurso, obrigação legal). Só bloqueia o login
+        // permanentemente, mostrando o motivo.
+        public void Banir(string motivo)
+        {
+            if (string.IsNullOrWhiteSpace(motivo))
+                throw new ArgumentException("Informe o motivo da exclusão.");
+
+            StatusConta = StatusContaMotorista.Banida;
+            BloqueadoAte = null;
+            MotivoBloqueio = motivo;
+        }
+
+        // Desfaz uma suspensão ou exclusão por engano — volta a poder logar normalmente.
+        public void Reativar()
+        {
+            StatusConta = StatusContaMotorista.Ativa;
+            BloqueadoAte = null;
+            MotivoBloqueio = null;
         }
 
         // Categoria Executivo exige veículo com até 3 anos de fabricação (contando a partir do ano atual).

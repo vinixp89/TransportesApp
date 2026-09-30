@@ -51,6 +51,12 @@ namespace TransportesApp.Infrastructure.Data.Configurations
             builder.Property(m => m.DataCadastro)
                 .IsRequired();
 
+            builder.Property(m => m.StatusConta)
+                .IsRequired();
+
+            builder.Property(m => m.MotivoBloqueio)
+                .HasMaxLength(500);
+
             builder.Property(m => m.FotoSelfieUrl)
                 .HasMaxLength(300);
 

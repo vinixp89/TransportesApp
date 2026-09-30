@@ -140,6 +140,48 @@ namespace TransportesApp.Api.Controllers
             return Ok(motoristas);
         }
 
+        // Suspende ou exclui a conta por violação de termos (ver AdminMotoristasPage no front-end) —
+        // o motivo aparece pro motorista na próxima tentativa de login (ver
+        // MotoristaService.VerificarBloqueioAsync) e ele é desconectado na hora se já estiver logado
+        // (ver OnTokenValidated no Program.cs).
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:guid}/suspender")]
+        public async Task<IActionResult> Suspender(Guid id, [FromBody] SuspenderMotoristaRequest request)
+        {
+            try
+            {
+                var resultado = await _motoristaService.SuspenderAsync(id, request.Motivo, request.Dias);
+                return resultado is null ? NotFound() : Ok(resultado);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:guid}/banir")]
+        public async Task<IActionResult> Banir(Guid id, [FromBody] BanirMotoristaRequest request)
+        {
+            try
+            {
+                var resultado = await _motoristaService.BanirAsync(id, request.Motivo);
+                return resultado is null ? NotFound() : Ok(resultado);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:guid}/reativar")]
+        public async Task<IActionResult> Reativar(Guid id)
+        {
+            var resultado = await _motoristaService.ReativarAsync(id);
+            return resultado is null ? NotFound() : Ok(resultado);
+        }
+
         // Fotos de verificação do motorista pro Admin conferir na lista geral (ver
         // AdminMotoristasPage no front-end) — mesmo padrão de ServirFotoAsync do
         // AdminExecutivoController, mas aberto pra qualquer motorista cadastrado, não só quem pediu

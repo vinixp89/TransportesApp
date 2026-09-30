@@ -248,6 +248,19 @@ namespace TransportesApp.Api
                             return;
                         }
 
+                        // Se um Motorista já logado for suspenso/excluído pelo Admin nesse meio tempo, o
+                        // token dele (ainda válido) é recusado na próxima requisição — não precisa
+                        // esperar expirar. Pra Cliente/Admin isso é sempre "não bloqueado" (ver
+                        // MotoristaService.VerificarBloqueioAsync).
+                        var motoristaService = context.HttpContext.RequestServices.GetRequiredService<MotoristaService>();
+                        var (bloqueado, _) = await motoristaService.VerificarBloqueioAsync(usuarioId);
+
+                        if (bloqueado)
+                        {
+                            context.Fail("Conta suspensa ou excluída.");
+                            return;
+                        }
+
                         if (usuario.UltimoAcessoEm is null || DateTime.UtcNow - usuario.UltimoAcessoEm > TimeSpan.FromMinutes(1))
                         {
                             usuario.UltimoAcessoEm = DateTime.UtcNow;

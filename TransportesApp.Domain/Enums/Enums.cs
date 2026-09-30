@@ -59,6 +59,16 @@
 
     }
 
+    // Situação disciplinar da conta do motorista (independente de StatusMotorista, que é só
+    // online/offline/em corrida) — ver Motorista.Suspender/Banir, usada pelo Admin quando o
+    // motorista viola algum termo do app.
+    public enum StatusContaMotorista
+    {
+        Ativa,
+        Suspensa,
+        Banida
+    }
+
     // Avulsa é o valor 0 (padrão) de propósito: o Swagger sempre preenche o exemplo da requisição
     // com o primeiro valor do enum e um Guid de exemplo em PacoteCorridasId. Se Pacote fosse o padrão,
     // qualquer corrida criada sem mexer nesses campos cairia num pacote inexistente e dava erro.

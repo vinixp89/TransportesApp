@@ -38,8 +38,17 @@ namespace TransportesApp.Application.DTOs
         double? LongitudeAtual,
         bool FotosEnviadas,
         bool TelefoneVerificado,
-        bool TermosAceitos
+        bool TermosAceitos,
+        StatusContaMotorista StatusConta,
+        DateTime? BloqueadoAte,
+        string? MotivoBloqueio
     );
+
+    // Dias null = suspensão por tempo indeterminado ("definitivamente"); com valor, a conta volta a
+    // funcionar sozinha depois desses dias (ver MotoristaService.VerificarBloqueioAsync).
+    public record SuspenderMotoristaRequest(string Motivo, int? Dias);
+
+    public record BanirMotoristaRequest(string Motivo);
 
     // Dados do motorista que o CLIENTE pode ver enquanto está com uma corrida em andamento com ele —
     // deliberadamente sem CPF/CNH/telefone (ver CorridasController.ObterMotoristaDaCorrida). A foto

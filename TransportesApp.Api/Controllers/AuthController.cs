@@ -223,6 +223,13 @@ namespace TransportesApp.Api.Controllers
             if (!senhaValida)
                 return Unauthorized(new { mensagem = "Email ou senha inválidos" });
 
+            // Só tem efeito se essa conta for de um Motorista suspenso/excluído pelo Admin — pra
+            // Cliente e Admin isso sempre volta "não bloqueado" (ver VerificarBloqueioAsync).
+            var (bloqueado, mensagemBloqueio) = await _motoristaService.VerificarBloqueioAsync(usuario.Id);
+
+            if (bloqueado)
+                return Unauthorized(new { mensagem = mensagemBloqueio });
+
             var token = await GerarTokenAsync(usuario);
 
             return Ok(token);

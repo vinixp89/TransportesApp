@@ -1,5 +1,6 @@
 ﻿using TransportesApp.Application.DTOs;
 using TransportesApp.Domain.Entities;
+using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Domain.ValueObjects;
 
@@ -113,6 +114,81 @@ namespace TransportesApp.Application.Services
         {
             var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
             return motorista?.FotoPlacaUrl;
+        }
+
+        // Suspende ou exclui a conta por violação de termos — usado pelo Admin (ver
+        // MotoristasController). Lança ArgumentException se o motivo vier vazio (ver Motorista.Suspender).
+        public async Task<MotoristaResponse?> SuspenderAsync(Guid motoristaId, string motivo, int? dias)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+
+            if (motorista is null)
+                return null;
+
+            var suspensoAte = dias is null ? (DateTime?)null : DateTime.UtcNow.AddDays(dias.Value);
+            motorista.Suspender(motivo, suspensoAte);
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
+        public async Task<MotoristaResponse?> BanirAsync(Guid motoristaId, string motivo)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+
+            if (motorista is null)
+                return null;
+
+            motorista.Banir(motivo);
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
+        public async Task<MotoristaResponse?> ReativarAsync(Guid motoristaId)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+
+            if (motorista is null)
+                return null;
+
+            motorista.Reativar();
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
+        // Checado no login (AuthController) e a cada requisição autenticada (ver OnTokenValidated no
+        // Program.cs) — garante que uma suspensão/exclusão feita pelo Admin já bloqueia o motorista na
+        // hora, mesmo que ele já estivesse logado. Suspensão temporária vencida se auto-reativa aqui
+        // (sem o Admin precisar fazer nada), então quem chama nem precisa saber que isso aconteceu.
+        public async Task<(bool Bloqueado, string? Mensagem)> VerificarBloqueioAsync(Guid usuarioId)
+        {
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return (false, null);
+
+            if (motorista.StatusConta == StatusContaMotorista.Suspensa
+                && motorista.BloqueadoAte is not null && motorista.BloqueadoAte <= DateTime.UtcNow)
+            {
+                motorista.Reativar();
+                await _motoristaRepository.AtualizarAsync(motorista);
+                return (false, null);
+            }
+
+            if (motorista.StatusConta == StatusContaMotorista.Banida)
+                return (true, $"Sua conta foi excluída do Vai na Boa. Motivo: {motorista.MotivoBloqueio}");
+
+            if (motorista.StatusConta == StatusContaMotorista.Suspensa)
+            {
+                var ate = motorista.BloqueadoAte is null
+                    ? "definitivamente"
+                    : $"até {motorista.BloqueadoAte:dd/MM/yyyy}";
+                return (true, $"Sua conta está suspensa {ate}. Motivo: {motorista.MotivoBloqueio}");
+            }
+
+            return (false, null);
         }
 
         public async Task<IEnumerable<MotoristaResponse>> ListarAsync()
@@ -274,7 +350,10 @@ namespace TransportesApp.Application.Services
                 motorista.LongitudeAtual,
                 motorista.FotoSelfieUrl is not null && motorista.FotoVeiculoUrl is not null && motorista.FotoPlacaUrl is not null,
                 motorista.TelefoneVerificado,
-                motorista.TermosAceitos
+                motorista.TermosAceitos,
+                motorista.StatusConta,
+                motorista.BloqueadoAte,
+                motorista.MotivoBloqueio
             );
         }
     }
