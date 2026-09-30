@@ -29,6 +29,7 @@ namespace TransportesApp.Application.DTOs
         string Telefone,
         string PlacaVeiculo,
         string ModeloVeiculo,
+        int? AnoVeiculo,
         double AvaliacaoMeida,
         DateTime DataCadastro,
         EnderecoResponse Endereco,

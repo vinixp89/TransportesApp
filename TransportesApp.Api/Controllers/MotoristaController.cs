@@ -140,6 +140,44 @@ namespace TransportesApp.Api.Controllers
             return Ok(motoristas);
         }
 
+        // Fotos de verificação do motorista pro Admin conferir na lista geral (ver
+        // AdminMotoristasPage no front-end) — mesmo padrão de ServirFotoAsync do
+        // AdminExecutivoController, mas aberto pra qualquer motorista cadastrado, não só quem pediu
+        // Executivo.
+        [Authorize(Roles = "Admin")]
+        [HttpGet("{id:guid}/foto-selfie")]
+        public async Task<IActionResult> ObterFotoSelfie(Guid id)
+            => await ServirFotoAsync(await _motoristaService.ObterCaminhoFotoSelfieAsync(id));
+
+        [Authorize(Roles = "Admin")]
+        [HttpGet("{id:guid}/foto-veiculo")]
+        public async Task<IActionResult> ObterFotoVeiculo(Guid id)
+            => await ServirFotoAsync(await _motoristaService.ObterCaminhoFotoVeiculoAsync(id));
+
+        [Authorize(Roles = "Admin")]
+        [HttpGet("{id:guid}/foto-placa")]
+        public async Task<IActionResult> ObterFotoPlaca(Guid id)
+            => await ServirFotoAsync(await _motoristaService.ObterCaminhoFotoPlacaAsync(id));
+
+        private Task<IActionResult> ServirFotoAsync(string? caminhoRelativo)
+        {
+            if (caminhoRelativo is null)
+                return Task.FromResult<IActionResult>(NotFound());
+
+            var caminhoCompleto = Path.Combine(_ambiente.ContentRootPath, "uploads", caminhoRelativo);
+
+            if (!System.IO.File.Exists(caminhoCompleto))
+                return Task.FromResult<IActionResult>(NotFound());
+
+            var contentType = Path.GetExtension(caminhoCompleto).ToLowerInvariant() switch
+            {
+                ".png" => "image/png",
+                _ => "image/jpeg"
+            };
+
+            return Task.FromResult<IActionResult>(PhysicalFile(caminhoCompleto, contentType));
+        }
+
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> ObterPorId(Guid id)
         {

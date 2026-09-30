@@ -256,6 +256,7 @@ namespace TransportesApp.Application.Services
                 motorista.Telefone,
                 motorista.PlacaVeiculo,
                 motorista.ModeloVeiculo,
+                motorista.AnoVeiculo,
                 motorista.AvaliacaoMedia,
                 motorista.DataCadastro,
                 new EnderecoResponse(
