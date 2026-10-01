@@ -37,11 +37,35 @@ namespace TransportesApp.Application.DTOs
         double? LatitudeAtual,
         double? LongitudeAtual,
         bool FotosEnviadas,
+        bool TemFotoSelfie,
+        bool TemFotoVeiculo,
+        bool TemFotoPlaca,
         bool TelefoneVerificado,
         bool TermosAceitos,
         StatusContaMotorista StatusConta,
         DateTime? BloqueadoAte,
         string? MotivoBloqueio
+    );
+
+    // Edição manual pelo Admin (ver AdminMotoristasPage) — mesmos campos de CriarMotoristaRequest,
+    // mas AnoVeiculo é opcional aqui (o motorista pode ter sido cadastrado antes dessa exigência
+    // existir, e o Admin não deveria ser obrigado a preencher um valor que não tem como confirmar).
+    public record AtualizarMotoristaRequest(
+        string Nome,
+        string Cnh,
+        string Cpf,
+        string Telefone,
+        string PlacaVeiculo,
+        string ModeloVeiculo,
+        int? AnoVeiculo,
+        string Logradouro,
+        string Numero,
+        string Bairro,
+        string Cidade,
+        string Estado,
+        string? Complemento = null,
+        double? Latitude = null,
+        double? Longitude = null
     );
 
     // Dias null = suspensão por tempo indeterminado ("definitivamente"); com valor, a conta volta a

@@ -103,6 +103,45 @@ namespace TransportesApp.Domain.Entities
 
         }
 
+        // Edição manual pelo Admin (ver AdminMotoristasPage) — mesma validação básica do cadastro
+        // (CPF válido, campos obrigatórios), mas sem travar o ano de fabricação pelo limite de
+        // IdadeMaximaVeiculoAnos: o Admin pode estar só corrigindo um erro de digitação em outro
+        // campo, não necessariamente aprovando um veículo novo.
+        public void AtualizarDados(
+            string nome, string cnh, string cpf, string telefone,
+            string placaVeiculo, string modeloVeiculo, int? anoVeiculo, Endereco endereco)
+        {
+            if (string.IsNullOrWhiteSpace(nome))
+                throw new ArgumentException("Nome é obrigatório.");
+
+            if (string.IsNullOrWhiteSpace(cnh))
+                throw new ArgumentException("CNH é obrigatória.");
+
+            if (!CpfValidator.EhValido(cpf))
+                throw new ArgumentException("CPF inválido.");
+
+            if (string.IsNullOrWhiteSpace(telefone))
+                throw new ArgumentException("Telefone é obrigatório.");
+
+            if (endereco is null)
+                throw new ArgumentException("Endereço é obrigatório.");
+
+            Nome = nome;
+            CNH = cnh;
+            Cpf = CpfValidator.Normalizar(cpf);
+            Telefone = telefone;
+            PlacaVeiculo = placaVeiculo;
+            ModeloVeiculo = modeloVeiculo;
+            AnoVeiculo = anoVeiculo;
+            Endereco = endereco;
+        }
+
+        // Substituição individual de uma foto pelo Admin (ver AdminMotoristasPage) — diferente de
+        // DefinirFotos acima, que é chamado pelo próprio motorista enviando as 3 de uma vez só.
+        public void DefinirFotoSelfie(string url) => FotoSelfieUrl = url;
+        public void DefinirFotoVeiculo(string url) => FotoVeiculoUrl = url;
+        public void DefinirFotoPlaca(string url) => FotoPlacaUrl = url;
+
         public void AtualizarLocalizacao(double latitude , double longitude)
         {
 

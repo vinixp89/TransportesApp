@@ -140,6 +140,65 @@ namespace TransportesApp.Api.Controllers
             return Ok(motoristas);
         }
 
+        // Edição manual dos dados cadastrais pelo Admin (ver AdminMotoristasPage) — pra corrigir um
+        // erro de digitação ou atualizar algo que mudou (telefone, endereço, veículo), sem precisar
+        // do motorista pra isso.
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> AtualizarDados(Guid id, [FromBody] AtualizarMotoristaRequest request)
+        {
+            try
+            {
+                var resultado = await _motoristaService.AtualizarDadosAsync(id, request);
+                return resultado is null ? NotFound() : Ok(resultado);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
+        }
+
+        // Substitui uma foto específica do motorista (selfie/veículo/placa) — diferente de
+        // EnviarFotos acima (chamado pelo próprio motorista, exige as 3 juntas), aqui o Admin manda
+        // uma de cada vez, útil quando o motorista não conseguiu enviar pelo app.
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:guid}/foto-selfie")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public Task<IActionResult> AdminEnviarFotoSelfie(Guid id, IFormFile arquivo)
+            => AdminSalvarFotoAsync(id, arquivo, "selfie");
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:guid}/foto-veiculo")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public Task<IActionResult> AdminEnviarFotoVeiculo(Guid id, IFormFile arquivo)
+            => AdminSalvarFotoAsync(id, arquivo, "veiculo");
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:guid}/foto-placa")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public Task<IActionResult> AdminEnviarFotoPlaca(Guid id, IFormFile arquivo)
+            => AdminSalvarFotoAsync(id, arquivo, "placa");
+
+        private async Task<IActionResult> AdminSalvarFotoAsync(Guid motoristaId, IFormFile arquivo, string tipo)
+        {
+            if (arquivo is null || arquivo.Length == 0)
+                return BadRequest(new { mensagem = "Selecione um arquivo." });
+
+            if (arquivo.Length > TamanhoMaximoFotoBytes)
+                return BadRequest(new { mensagem = "A foto passa do limite de 8 MB." });
+
+            if (!ExtensoesAceitas.Contains(Path.GetExtension(arquivo.FileName)))
+                return BadRequest(new { mensagem = "A foto precisa ser JPG ou PNG." });
+
+            var pastaMotorista = Path.Combine(_ambiente.ContentRootPath, "uploads", "motoristas", motoristaId.ToString());
+            Directory.CreateDirectory(pastaMotorista);
+
+            var url = await SalvarArquivoAsync(arquivo, pastaMotorista, tipo, motoristaId);
+            var resultado = await _motoristaService.DefinirFotoAsync(motoristaId, tipo, url);
+
+            return resultado is null ? NotFound() : Ok(resultado);
+        }
+
         // Suspende ou exclui a conta por violação de termos (ver AdminMotoristasPage no front-end) —
         // o motivo aparece pro motorista na próxima tentativa de login (ver
         // MotoristaService.VerificarBloqueioAsync) e ele é desconectado na hora se já estiver logado

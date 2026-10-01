@@ -116,6 +116,56 @@ namespace TransportesApp.Application.Services
             return motorista?.FotoPlacaUrl;
         }
 
+        // Edição manual dos dados pelo Admin (ver AdminMotoristasPage) — lança ArgumentException se
+        // algo vier inválido (ver Motorista.AtualizarDados).
+        public async Task<MotoristaResponse?> AtualizarDadosAsync(Guid motoristaId, AtualizarMotoristaRequest request)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+
+            if (motorista is null)
+                return null;
+
+            var endereco = new Endereco(
+                logradouro: request.Logradouro,
+                numero: request.Numero,
+                bairro: request.Bairro,
+                cidade: request.Cidade,
+                estado: request.Estado,
+                latitude: request.Latitude ?? 0,
+                longitude: request.Longitude ?? 0,
+                complemento: request.Complemento
+            );
+
+            motorista.AtualizarDados(
+                request.Nome, request.Cnh, request.Cpf, request.Telefone,
+                request.PlacaVeiculo, request.ModeloVeiculo, request.AnoVeiculo, endereco);
+
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
+        // Substitui uma foto específica (selfie/veiculo/placa) enviada pelo Admin — diferente de
+        // DefinirFotosAsync acima, que exige as 3 de uma vez e só é chamado pelo próprio motorista.
+        public async Task<MotoristaResponse?> DefinirFotoAsync(Guid motoristaId, string tipo, string url)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+
+            if (motorista is null)
+                return null;
+
+            switch (tipo)
+            {
+                case "selfie": motorista.DefinirFotoSelfie(url); break;
+                case "veiculo": motorista.DefinirFotoVeiculo(url); break;
+                case "placa": motorista.DefinirFotoPlaca(url); break;
+            }
+
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
         // Suspende ou exclui a conta por violação de termos — usado pelo Admin (ver
         // MotoristasController). Lança ArgumentException se o motivo vier vazio (ver Motorista.Suspender).
         public async Task<MotoristaResponse?> SuspenderAsync(Guid motoristaId, string motivo, int? dias)
@@ -349,6 +399,9 @@ namespace TransportesApp.Application.Services
                 motorista.LatitudeAtual,
                 motorista.LongitudeAtual,
                 motorista.FotoSelfieUrl is not null && motorista.FotoVeiculoUrl is not null && motorista.FotoPlacaUrl is not null,
+                motorista.FotoSelfieUrl is not null,
+                motorista.FotoVeiculoUrl is not null,
+                motorista.FotoPlacaUrl is not null,
                 motorista.TelefoneVerificado,
                 motorista.TermosAceitos,
                 motorista.StatusConta,
