@@ -23,7 +23,13 @@ namespace TransportesApp.Application.Services
         // Campanha da faixa Azul: só concede pra cadastros feitos a partir dessa data (quem já se
         // cadastrou antes não recebe — ver ConcederOutubroSeElegivelAsync). Data em UTC porque é
         // assim que DataCadastro/DateTime.UtcNow são gravados em todo o resto do sistema.
-        public const int LimiteVagasOutubro = 100;
+        //
+        // Zerado (era 100) a pedido do Admin pra encerrar a campanha antes de esgotar as vagas —
+        // com concedidas >= 0 sempre verdadeiro, nenhum cadastro novo recebe mais a corrida grátis.
+        // Os ~22 já concedidos continuam valendo (ficam gravados em PromocaoLancamento, nunca são
+        // revogados); o banner "Restam X vagas" no app Cliente desaparece sozinho porque "ativa"
+        // passa a ser sempre falso.
+        public const int LimiteVagasOutubro = 0;
         public const CorFaixa FaixaPromocionalOutubro = CorFaixa.Azul;
         public static readonly DateTime DataInicioOutubro = new(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
 
