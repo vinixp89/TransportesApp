@@ -47,6 +47,11 @@ services:
       Inter__CertificadoPath: /app/inter-certs/certificado.crt
       Inter__ChavePath: /app/inter-certs/chave.key
       Inter__ContaCorrente: ${INTER_CONTA_CORRENTE}
+      # Envio de Pix dos saques dos motoristas — trocado do Banco Inter pro Asaas (ver
+      # AsaasPagamentoGateway) porque a integração do Inter ficou bloqueada pra criar nova aplicação.
+      # ASAAS_AMBIENTE=Sandbox usa a API de testes; qualquer outro valor (ou vazio) usa produção.
+      Asaas__ApiKey: ${ASAAS_API_KEY}
+      Asaas__Ambiente: ${ASAAS_AMBIENTE}
       Features__CarteiraMotoristaLiberada: ${FEATURE_CARTEIRA_MOTORISTA_LIBERADA}
       # SMS de verificação de telefone (Motorista/Cliente, ver TwilioSmsService) — sem isso, ninguém
       # consegue passar da tela "Confirme seu telefone" e o app fica travado ali pra sempre.

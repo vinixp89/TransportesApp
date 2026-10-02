@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using MercadoPago.Config;
 using TransportesApp.Application.Services;
@@ -69,38 +68,18 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<IGatewayPagamento, MercadoPagoGateway>();
             builder.Services.AddScoped<IFaceMatchGateway, AwsRekognitionFaceMatchGateway>();
 
-            // Cliente HTTP da API Banking do Banco Inter (envio de Pix pros saques dos motoristas —
-            // ver InterPagamentoGateway). Base address troca entre produção e sandbox pela config
-            // "Inter:Ambiente"; o certificado cliente (mTLS, exigido pelo Inter em toda chamada) só é
-            // adicionado se os dois arquivos estiverem configurados — sem eles, qualquer chamada falha
-            // na hora com uma mensagem clara em vez de silenciosamente ir sem autenticação.
-            builder.Services.AddHttpClient<IGatewayPagamentoSaque, InterPagamentoGateway>(client =>
+            // Cliente HTTP do Asaas (envio de Pix pros saques dos motoristas — ver
+            // AsaasPagamentoGateway). Trocado do Banco Inter (InterPagamentoGateway continua no
+            // projeto, só não registrado aqui) porque a conta do Inter ficou bloqueada pra criar nova
+            // aplicação. Sem certificado mTLS aqui — autenticação é só o Access Token no header,
+            // verificado dentro do próprio gateway. "Asaas:Ambiente" = "Sandbox" usa a API de testes;
+            // qualquer outro valor (ou vazio) usa produção.
+            builder.Services.AddHttpClient<IGatewayPagamentoSaque, AsaasPagamentoGateway>(client =>
             {
-                var ambienteInter = builder.Configuration["Inter:Ambiente"];
-                client.BaseAddress = new Uri(string.Equals(ambienteInter, "Sandbox", StringComparison.OrdinalIgnoreCase)
-                    ? "https://cdpj-sandbox.partners.uatinter.co"
-                    : "https://cdpj.partners.bancointer.com.br");
-            }).ConfigurePrimaryHttpMessageHandler(() =>
-            {
-                var handler = new HttpClientHandler();
-
-                var certificadoPath = builder.Configuration["Inter:CertificadoPath"];
-                var chavePath = builder.Configuration["Inter:ChavePath"];
-
-                // Confere se os arquivos existem de verdade, não só se o caminho foi configurado —
-                // o docker-compose.yml sempre define o caminho (fixo), então antes da aprovação do
-                // Inter e do certificado ser colocado no servidor, essa checagem por si só não
-                // bastava: X509Certificate2.CreateFromPemFile derrubava com FileNotFoundException
-                // qualquer requisição que resolvesse InterPagamentoGateway via DI.
-                if (!string.IsNullOrWhiteSpace(certificadoPath) && !string.IsNullOrWhiteSpace(chavePath)
-                    && File.Exists(certificadoPath) && File.Exists(chavePath))
-                {
-                    var certificado = X509Certificate2.CreateFromPemFile(certificadoPath, chavePath);
-                    handler.ClientCertificates.Add(certificado);
-                    handler.ClientCertificateOptions = ClientCertificateOption.Manual;
-                }
-
-                return handler;
+                var ambienteAsaas = builder.Configuration["Asaas:Ambiente"];
+                client.BaseAddress = new Uri(string.Equals(ambienteAsaas, "Sandbox", StringComparison.OrdinalIgnoreCase)
+                    ? "https://sandbox.asaas.com/api/v3/"
+                    : "https://api.asaas.com/v3/");
             });
             builder.Services.AddScoped<ClienteService>();
             builder.Services.AddScoped<MotoristaService>();
