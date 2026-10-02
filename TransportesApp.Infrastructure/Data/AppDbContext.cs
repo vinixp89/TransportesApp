@@ -36,6 +36,7 @@ namespace TransportesApp.Infrastructure.Data
         public DbSet<TransacaoCarteiraMotorista> TransacoesCarteiraMotorista => Set<TransacaoCarteiraMotorista>();
         public DbSet<SolicitacaoSaque> SolicitacoesSaque => Set<SolicitacaoSaque>();
         public DbSet<MensagemChat> MensagensChat => Set<MensagemChat>();
+        public DbSet<MensagemSuporte> MensagensSuporte => Set<MensagemSuporte>();
         public DbSet<Avaliacao> Avaliacoes => Set<Avaliacao>();
         public DbSet<VerificacaoFacial> VerificacoesFaciais => Set<VerificacaoFacial>();
         public DbSet<Aviso> Avisos => Set<Aviso>();
