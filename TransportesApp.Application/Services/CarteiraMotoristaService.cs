@@ -99,7 +99,7 @@ namespace TransportesApp.Application.Services
         public async Task<IEnumerable<SolicitacaoSaqueResponse>> ListarMinhasSolicitacoesAsync(Guid motoristaId)
         {
             var solicitacoes = await _solicitacaoRepository.ListarPorMotoristaIdAsync(motoristaId);
-            return await Task.WhenAll(solicitacoes.Select(MapearParaResponseSaqueAsync));
+            return await MapearListaAsync(solicitacoes);
         }
 
         // A partir daqui, operações de Admin — processar o saque de verdade (fora do app) e refletir
@@ -107,7 +107,21 @@ namespace TransportesApp.Application.Services
         public async Task<IEnumerable<SolicitacaoSaqueResponse>> ListarPendentesAsync()
         {
             var solicitacoes = await _solicitacaoRepository.ListarPendentesAsync();
-            return await Task.WhenAll(solicitacoes.Select(MapearParaResponseSaqueAsync));
+            return await MapearListaAsync(solicitacoes);
+        }
+
+        // Um por vez, nunca Task.WhenAll aqui: MapearParaResponseSaqueAsync usa o mesmo DbContext
+        // (escopado por requisição) pra buscar o motorista de cada solicitação, e o EF Core não
+        // permite duas operações concorrentes no mesmo DbContext — rodar em paralelo derrubava a
+        // consulta assim que a lista tinha mais de uma solicitação.
+        private async Task<IEnumerable<SolicitacaoSaqueResponse>> MapearListaAsync(IEnumerable<SolicitacaoSaque> solicitacoes)
+        {
+            var resultado = new List<SolicitacaoSaqueResponse>();
+
+            foreach (var solicitacao in solicitacoes)
+                resultado.Add(await MapearParaResponseSaqueAsync(solicitacao));
+
+            return resultado;
         }
 
         public async Task<SolicitacaoSaqueResponse?> ConcluirSaqueAsync(Guid solicitacaoId)
