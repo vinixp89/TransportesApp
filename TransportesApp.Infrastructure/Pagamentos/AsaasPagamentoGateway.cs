@@ -57,6 +57,8 @@ namespace TransportesApp.Infrastructure.Pagamentos
                 Content = JsonContent.Create(corpo, options: JsonOpcoes),
             };
             request.Headers.Add("access_token", apiKey);
+            // O Asaas recusa qualquer chamada sem User-Agent (erro "user_agent_not_informed").
+            request.Headers.UserAgent.ParseAdd("VaiNaBoa-Backend/1.0");
 
             var response = await _httpClient.SendAsync(request);
             var corpoResposta = await response.Content.ReadAsStringAsync();
