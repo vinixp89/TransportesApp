@@ -49,7 +49,10 @@ namespace TransportesApp.Infrastructure.Pagamentos
                 externalReference = solicitacao.IdIdempotente,
             };
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/transfers")
+            // Sem barra inicial de propósito — com "/transfers" o .NET descarta o "/v3/" (ou
+            // "/api/v3/") que já vem na BaseAddress, porque uma barra inicial é tratada como caminho
+            // absoluto a partir da raiz do host, não como complemento da BaseAddress.
+            using var request = new HttpRequestMessage(HttpMethod.Post, "transfers")
             {
                 Content = JsonContent.Create(corpo, options: JsonOpcoes),
             };
