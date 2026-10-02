@@ -14,7 +14,10 @@ namespace TransportesApp.Application.Services
     // motorista (nome completo, CPF/CNPJ e ISPB do banco).
     public class CarteiraMotoristaService
     {
-        public const decimal ValorMinimoSaque = 20m;
+        // Baixado de R$20 pra R$1 enquanto a base de motoristas ainda é pequena (restrição real
+        // volta quando fizer sentido pra operação, ver pedido do Admin) — mantido em 1 real em vez de
+        // zero só pra não permitir um pedido de saque sem valor nenhum.
+        public const decimal ValorMinimoSaque = 1m;
 
         private readonly ICarteiraMotoristaRepository _carteiraRepository;
         private readonly ITransacaoCarteiraMotoristaRepository _transacaoRepository;
