@@ -133,7 +133,7 @@ namespace TransportesApp.Api.Controllers
                 // ClienteConfigurations/MotoristaConfiguration) — mesma limpeza do ArgumentException
                 // acima, pra não deixar um usuário Identity órfão sem perfil.
                 await _userManager.DeleteAsync(usuario);
-                return BadRequest(new { mensagem = "CPF ou telefone já cadastrado em outra conta." });
+                return BadRequest(new { mensagem = MensagemViolacaoDeIndiceUnico(ex) });
             }
 
             try
@@ -380,6 +380,23 @@ namespace TransportesApp.Api.Controllers
         // genérico de exceções).
         private static bool EhViolacaoDeIndiceUnico(DbUpdateException ex)
             => ex.InnerException is PostgresException { SqlState: "23505" };
+
+        // Antes essa mensagem era genérica ("CPF ou telefone já cadastrado") e confundia quem via o
+        // erro de novo depois de só ter corrigido um dos dois campos — agora identifica qual índice
+        // único foi violado (pelo nome do índice, ver HasIndex em ClienteConfigurations/
+        // MotoristaConfiguration) e avisa exatamente qual dado está duplicado.
+        private static string MensagemViolacaoDeIndiceUnico(DbUpdateException ex)
+        {
+            var nomeIndice = (ex.InnerException as PostgresException)?.ConstraintName ?? "";
+
+            if (nomeIndice.Contains("Telefone", StringComparison.OrdinalIgnoreCase))
+                return "Esse telefone já está cadastrado em outra conta.";
+
+            if (nomeIndice.Contains("Cpf", StringComparison.OrdinalIgnoreCase))
+                return "Esse CPF já está cadastrado em outra conta.";
+
+            return "CPF ou telefone já cadastrado em outra conta.";
+        }
 
         private async Task<AuthResponse> GerarTokenAsync(Usuario usuario)
         {
