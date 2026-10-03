@@ -135,6 +135,17 @@ namespace TransportesApp.Api.Controllers
                 await _userManager.DeleteAsync(usuario);
                 return BadRequest(new { mensagem = MensagemViolacaoDeIndiceUnico(ex) });
             }
+            catch (Exception ex)
+            {
+                // Qualquer outra falha inesperada (timeout de rede, erro de infra etc.) — mesma
+                // limpeza de cima. Sem isso, uma falha não prevista aqui deixava o usuário Identity
+                // criado sem perfil, bloqueando pra sempre o e-mail/telefone numa tentativa futura
+                // (ver LimpezaCadastrosOrfaosService, que existe como rede de segurança pros casos em
+                // que nem essa limpeza na hora rodou, ex: o processo caiu no meio da requisição).
+                await _userManager.DeleteAsync(usuario);
+                _logger.LogError(ex, "Falha inesperada ao criar perfil de {Tipo} pro usuário {UsuarioId}", tipo, usuario.Id);
+                return StatusCode(500, new { mensagem = "Não foi possível completar o cadastro. Tente novamente." });
+            }
 
             try
             {

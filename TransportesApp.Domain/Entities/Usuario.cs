@@ -15,5 +15,11 @@ namespace TransportesApp.Domain.Entities
         // acima, com throttle (só grava se fizer mais de 1 minuto da última atualização) pra não virar
         // um UPDATE a cada requisição.
         public DateTime? UltimoAcessoEm { get; set; }
+
+        // Usado pelo LimpezaCadastrosOrfaosService pra saber se uma conta sem perfil de Cliente/
+        // Motorista associado já é velha o suficiente pra ser considerada "presa" (ver lá o porquê da
+        // margem de segurança) — sem essa margem, um cadastro genuinamente em andamento no meio de
+        // uma requisição poderia ser apagado por engano.
+        public DateTime DataCriacao { get; set; } = DateTime.UtcNow;
     }
 }

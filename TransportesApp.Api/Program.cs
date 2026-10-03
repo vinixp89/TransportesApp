@@ -10,6 +10,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using MercadoPago.Config;
+using TransportesApp.Api.BackgroundServices;
 using TransportesApp.Application.Services;
 using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Interfaces;
@@ -98,6 +99,7 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<VerificacaoSmsService>();
             builder.Services.AddScoped<MensagemChatService>();
             builder.Services.AddScoped<MensagemSuporteService>();
+            builder.Services.AddHostedService<LimpezaCadastrosOrfaosService>();
             builder.Services.AddScoped<AvaliacaoService>();
             builder.Services.AddScoped<VerificacaoFacialService>();
             builder.Services.AddScoped<AvisoService>();
