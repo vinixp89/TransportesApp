@@ -6,6 +6,7 @@ namespace TransportesApp.Domain.Interfaces
     {
         Task<int> ContarAsync();
         Task<int> ContarLiberadosAsync();
+        Task<IEnumerable<BonusMotorista>> ListarAsync();
         Task<BonusMotorista?> ObterPorMotoristaIdAsync(Guid motoristaId);
         Task AdicionarAsync(BonusMotorista bonus);
         Task AtualizarAsync(BonusMotorista bonus);

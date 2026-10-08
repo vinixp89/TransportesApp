@@ -23,15 +23,18 @@ namespace TransportesApp.Application.Services
         private readonly IBonusMotoristaRepository _bonusRepository;
         private readonly CarteiraMotoristaService _carteiraMotoristaService;
         private readonly NotificacaoService _notificacaoService;
+        private readonly IMotoristaRepository _motoristaRepository;
 
         public BonusMotoristaService(
             IBonusMotoristaRepository bonusRepository,
             CarteiraMotoristaService carteiraMotoristaService,
-            NotificacaoService notificacaoService)
+            NotificacaoService notificacaoService,
+            IMotoristaRepository motoristaRepository)
         {
             _bonusRepository = bonusRepository;
             _carteiraMotoristaService = carteiraMotoristaService;
             _notificacaoService = notificacaoService;
+            _motoristaRepository = motoristaRepository;
         }
 
         public async Task<BonusMotoristaStatusResponse> ObterStatusAsync()
@@ -41,6 +44,25 @@ namespace TransportesApp.Application.Services
 
             return new BonusMotoristaStatusResponse(
                 LimiteVagas, ValorBonus, reservadas, Math.Max(0, LimiteVagas - reservadas), liberados);
+        }
+
+        // Um por vez (sem Task.WhenAll): o DbContext é compartilhado na requisição e o EF Core não
+        // aceita duas consultas concorrentes nele. No máximo LimiteVagas linhas, então N+1 é irrelevante.
+        public async Task<IEnumerable<BonusMotoristaItemResponse>> ListarAsync()
+        {
+            var bonus = await _bonusRepository.ListarAsync();
+            var resultado = new List<BonusMotoristaItemResponse>();
+
+            foreach (var b in bonus)
+            {
+                var motorista = await _motoristaRepository.ObterPorIdAsync(b.MotoristaId);
+
+                resultado.Add(new BonusMotoristaItemResponse(
+                    b.MotoristaId, motorista?.Nome ?? "—", motorista?.Telefone ?? "—",
+                    b.Valor, b.DataConcedido, b.Liberado, b.DataLiberacao));
+            }
+
+            return resultado;
         }
 
         // Chamado pelo AuthController logo depois de criar o Motorista — quem chama é responsável por

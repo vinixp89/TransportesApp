@@ -18,6 +18,12 @@ namespace TransportesApp.Api.Controllers
             _bonusMotoristaService = bonusMotoristaService;
         }
 
+        [HttpGet("lista")]
+        public async Task<IActionResult> Listar()
+        {
+            return Ok(await _bonusMotoristaService.ListarAsync());
+        }
+
         [HttpGet("status")]
         public async Task<IActionResult> ObterStatus()
         {

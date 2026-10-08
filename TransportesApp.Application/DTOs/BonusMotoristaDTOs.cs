@@ -8,4 +8,14 @@ namespace TransportesApp.Application.DTOs
         int VagasReservadas,
         int VagasRestantes,
         int BonusLiberados);
+
+    // Uma linha da lista do Admin: quem pegou vaga e se já finalizou a 1ª corrida (Liberado).
+    public record BonusMotoristaItemResponse(
+        Guid MotoristaId,
+        string Nome,
+        string Telefone,
+        decimal Valor,
+        DateTime DataConcedido,
+        bool Liberado,
+        DateTime? DataLiberacao);
 }
