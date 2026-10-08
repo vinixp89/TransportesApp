@@ -19,6 +19,13 @@ namespace TransportesApp.Api.Controllers
             _mensagemSuporteService = mensagemSuporteService;
         }
 
+        [HttpGet("pendentes/contagem")]
+        public async Task<IActionResult> ContarPendentes()
+        {
+            var total = await _mensagemSuporteService.ContarConversasPendentesAsync();
+            return Ok(new { total });
+        }
+
         [HttpGet("conversas")]
         public async Task<IActionResult> ListarConversas()
         {

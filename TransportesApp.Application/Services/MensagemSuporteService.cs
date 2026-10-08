@@ -57,6 +57,15 @@ namespace TransportesApp.Application.Services
             return MapearParaResponse(mensagem);
         }
 
+        // Conversas cuja última mensagem é do usuário (Admin ainda não respondeu) — usado pro aviso de
+        // "nova mensagem" no painel, que consulta isso a cada poucos segundos: por isso não monta a
+        // lista completa nem busca o nome de cada usuário, como ListarConversasAsync faz.
+        public async Task<int> ContarConversasPendentesAsync()
+        {
+            var ultimas = await _mensagemSuporteRepository.ListarUltimaMensagemDeCadaConversaAsync();
+            return ultimas.Count(m => !m.EnviadaPeloAdmin);
+        }
+
         public async Task<IEnumerable<ConversaSuporteResponse>> ListarConversasAsync()
         {
             var ultimas = await _mensagemSuporteRepository.ListarUltimaMensagemDeCadaConversaAsync();
