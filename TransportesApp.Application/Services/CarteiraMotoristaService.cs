@@ -58,6 +58,19 @@ namespace TransportesApp.Application.Services
             await _transacaoRepository.AdicionarAsync(transacao);
         }
 
+        // Crédito avulso de promoção (ver BonusMotoristaService) — aparece no extrato com tipo próprio,
+        // separado do repasse de corrida.
+        public async Task CreditarBonusAsync(Guid motoristaId, decimal valor, string descricao)
+        {
+            var carteira = await ObterOuCriarEntidadeAsync(motoristaId);
+
+            carteira.Creditar(valor);
+            await _carteiraRepository.AtualizarAsync(carteira);
+
+            var transacao = new TransacaoCarteiraMotorista(carteira.Id, TipoTransacaoCarteiraMotorista.BonusPromocao, valor, descricao);
+            await _transacaoRepository.AdicionarAsync(transacao);
+        }
+
         public async Task<IEnumerable<TransacaoCarteiraMotoristaResponse>> ObterExtratoAsync(Guid motoristaId)
         {
             var carteira = await _carteiraRepository.ObterPorMotoristaIdAsync(motoristaId);

@@ -1,4 +1,4 @@
-﻿namespace TransportesApp.Domain.Enums
+namespace TransportesApp.Domain.Enums
 {
     public enum  TipoUsuario
     {
@@ -169,7 +169,10 @@
     {
         CreditoCorrida,
         DebitoSaque,
-        EstornoSaque
+        EstornoSaque,
+        // Último (valor 3) pra não mexer nos valores já gravados no banco — crédito avulso de
+        // promoção pro motorista (ver BonusMotoristaService).
+        BonusPromocao
     }
 
     // Como o motorista quer receber o saque — ver SolicitacaoSaque.

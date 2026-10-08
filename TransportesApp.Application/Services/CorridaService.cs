@@ -17,6 +17,7 @@ namespace TransportesApp.Application.Services
         private readonly IAssinaturaPlanoRepository _assinaturaPlanoRepository;
         private readonly AssinaturaMotoristaExecutivoService _assinaturaMotoristaExecutivoService;
         private readonly CarteiraMotoristaService _carteiraMotoristaService;
+        private readonly BonusMotoristaService _bonusMotoristaService;
         private readonly PagamentoService _pagamentoService;
         private readonly ILogger<CorridaService> _logger;
 
@@ -29,6 +30,7 @@ namespace TransportesApp.Application.Services
             IAssinaturaPlanoRepository assinaturaPlanoRepository,
             AssinaturaMotoristaExecutivoService assinaturaMotoristaExecutivoService,
             CarteiraMotoristaService carteiraMotoristaService,
+            BonusMotoristaService bonusMotoristaService,
             PagamentoService pagamentoService,
             ILogger<CorridaService> logger)
         {
@@ -40,6 +42,7 @@ namespace TransportesApp.Application.Services
             _assinaturaPlanoRepository = assinaturaPlanoRepository;
             _assinaturaMotoristaExecutivoService = assinaturaMotoristaExecutivoService;
             _carteiraMotoristaService = carteiraMotoristaService;
+            _bonusMotoristaService = bonusMotoristaService;
             _pagamentoService = pagamentoService;
             _logger = logger;
         }
@@ -489,6 +492,20 @@ namespace TransportesApp.Application.Services
                 var valorMotoristaFinal = Math.Round(valorReferenciaFinal * PercentualMotorista, 2);
                 await _carteiraMotoristaService.CreditarPorCorridaAsync(
                     corrida.MotoristaId.Value, valorMotoristaFinal, $"Corrida finalizada ({corrida.FaixaContratada})");
+
+                // Bônus de boas-vindas (ver BonusMotoristaService) — a corrida já foi finalizada e o
+                // repasse creditado, então uma falha aqui só é logada, nunca desfaz nem trava a finalização.
+                if (motorista is not null)
+                {
+                    try
+                    {
+                        await _bonusMotoristaService.ConcederSeElegivelAsync(motorista);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Falha ao conceder bônus de boas-vindas ao motorista {MotoristaId}", motorista.Id);
+                    }
+                }
             }
 
             return new FinalizarCorridaResponse(estourouFaixa, MapearParaResponse(corrida));

@@ -31,6 +31,7 @@ namespace TransportesApp.Infrastructure.Data
         public DbSet<AssinaturaMotoristaExecutivo> AssinaturasMotoristaExecutivo => Set<AssinaturaMotoristaExecutivo>();
         public DbSet<Pagamento> Pagamentos => Set<Pagamento>();
         public DbSet<PromocaoLancamento> PromocoesLancamento => Set<PromocaoLancamento>();
+        public DbSet<BonusMotorista> BonusMotoristas => Set<BonusMotorista>();
         public DbSet<Notificacao> Notificacoes => Set<Notificacao>();
         public DbSet<CarteiraMotorista> CarteirasMotorista => Set<CarteiraMotorista>();
         public DbSet<TransacaoCarteiraMotorista> TransacoesCarteiraMotorista => Set<TransacaoCarteiraMotorista>();
