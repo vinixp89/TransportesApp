@@ -24,25 +24,28 @@ namespace TransportesApp.Application.Services
         private readonly ISolicitacaoSaqueRepository _solicitacaoRepository;
         private readonly IGatewayPagamentoSaque _gatewayPagamentoSaque;
         private readonly IMotoristaRepository _motoristaRepository;
+        private readonly IBonusMotoristaRepository _bonusRepository;
 
         public CarteiraMotoristaService(
             ICarteiraMotoristaRepository carteiraRepository,
             ITransacaoCarteiraMotoristaRepository transacaoRepository,
             ISolicitacaoSaqueRepository solicitacaoRepository,
             IGatewayPagamentoSaque gatewayPagamentoSaque,
-            IMotoristaRepository motoristaRepository)
+            IMotoristaRepository motoristaRepository,
+            IBonusMotoristaRepository bonusRepository)
         {
             _carteiraRepository = carteiraRepository;
             _transacaoRepository = transacaoRepository;
             _solicitacaoRepository = solicitacaoRepository;
             _gatewayPagamentoSaque = gatewayPagamentoSaque;
             _motoristaRepository = motoristaRepository;
+            _bonusRepository = bonusRepository;
         }
 
         public async Task<CarteiraMotoristaResponse> ObterOuCriarAsync(Guid motoristaId)
         {
             var carteira = await ObterOuCriarEntidadeAsync(motoristaId);
-            return MapearParaResponse(carteira);
+            return await MapearParaResponseAsync(carteira);
         }
 
         // Chamado pelo CorridaService assim que uma corrida com motorista é finalizada — credita
@@ -89,6 +92,18 @@ namespace TransportesApp.Application.Services
                 throw new ArgumentException($"O valor mínimo pra saque é {ValorMinimoSaque:C}.");
 
             var carteira = await ObterOuCriarEntidadeAsync(motoristaId);
+
+            // Bônus de boas-vindas já está no saldo mas fica travado até a 1ª corrida finalizada
+            // (ver BonusMotoristaService) — só o que sobra descontando a parte travada pode ser sacado.
+            var bloqueado = await ObterSaldoBloqueadoAsync(motoristaId);
+            var disponivel = carteira.Saldo - bloqueado;
+
+            if (request.Valor > disponivel)
+            {
+                throw new InvalidOperationException(bloqueado > 0
+                    ? $"Seu bônus de {bloqueado:C} será liberado pra saque depois que você finalizar sua 1ª corrida. Disponível agora: {Math.Max(0, disponivel):C}."
+                    : "Saldo insuficiente pra esse saque.");
+            }
 
             carteira.Debitar(request.Valor);
             await _carteiraRepository.AtualizarAsync(carteira);
@@ -209,9 +224,19 @@ namespace TransportesApp.Application.Services
             return carteira;
         }
 
-        private static CarteiraMotoristaResponse MapearParaResponse(CarteiraMotorista carteira)
+        private async Task<decimal> ObterSaldoBloqueadoAsync(Guid motoristaId)
         {
-            return new CarteiraMotoristaResponse(carteira.Id, carteira.MotoristaId, carteira.Saldo, ValorMinimoSaque, carteira.DataCriacao);
+            var bonus = await _bonusRepository.ObterPorMotoristaIdAsync(motoristaId);
+            return bonus is { Liberado: false } ? bonus.Valor : 0m;
+        }
+
+        private async Task<CarteiraMotoristaResponse> MapearParaResponseAsync(CarteiraMotorista carteira)
+        {
+            var bloqueado = await ObterSaldoBloqueadoAsync(carteira.MotoristaId);
+
+            return new CarteiraMotoristaResponse(
+                carteira.Id, carteira.MotoristaId, carteira.Saldo, ValorMinimoSaque, carteira.DataCriacao,
+                bloqueado, Math.Max(0, carteira.Saldo - bloqueado));
         }
 
         // Motorista buscado à parte (não vem junto na entidade SolicitacaoSaque) — pro Admin

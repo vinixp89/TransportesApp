@@ -4,7 +4,12 @@ namespace TransportesApp.Application.DTOs
 {
     // ValorMinimoSaque vem junto pra o app não precisar hardcodar a regra — ver
     // CarteiraMotoristaService.ValorMinimoSaque.
-    public record CarteiraMotoristaResponse(Guid Id, Guid MotoristaId, decimal Saldo, decimal ValorMinimoSaque, DateTime DataCriacao);
+    //
+    // Saldo é o total da carteira (inclui o bônus de boas-vindas ainda travado, ver BonusMotorista);
+    // SaldoBloqueado é a parte dele que ainda não pode ser sacada e SaldoDisponivel = Saldo - SaldoBloqueado.
+    public record CarteiraMotoristaResponse(
+        Guid Id, Guid MotoristaId, decimal Saldo, decimal ValorMinimoSaque, DateTime DataCriacao,
+        decimal SaldoBloqueado = 0, decimal SaldoDisponivel = 0);
 
     public record TransacaoCarteiraMotoristaResponse(Guid Id, TipoTransacaoCarteiraMotorista Tipo, decimal Valor, DateTime Data, string Descricao);
 

@@ -6,11 +6,11 @@ using TransportesApp.Domain.Interfaces;
 namespace TransportesApp.Application.Services
 {
     // Promoção de boas-vindas pro motorista: os 10 primeiros que se cadastrarem (a partir de
-    // DataInicio) ganham R$ 20, com a finalização da 1ª corrida como pré-requisito. A vaga é reservada
-    // no cadastro (ReservarAsync); o dinheiro só entra no saldo da carteira quando ele finaliza a
-    // primeira corrida (LiberarAsync) — quem nunca roda fica com a vaga ocupada, mas não tem nada
-    // pra sacar. Como o crédito só acontece uma vez (Liberado), qualquer corrida finalizada depois
-    // da primeira é ignorada.
+    // DataInicio) ganham R$ 20, com a finalização da 1ª corrida como pré-requisito pra sacar. O valor
+    // entra no saldo da carteira já no cadastro (ReservarAsync), mas travado: CarteiraMotoristaService
+    // só deixa sacar o que passa da parte bloqueada. Quando ele finaliza a 1ª corrida, LiberarAsync
+    // destrava o bônus — quem nunca roda fica com o valor no saldo, sem poder sacar. Liberar só tem
+    // efeito uma vez, então as corridas seguintes são ignoradas.
     //
     // Sem lock/transação serializável na contagem: no volume esperado, o risco de passar 1 vaga do
     // limite numa disputa simultânea é aceitável (mesma decisão de PromocaoLancamentoService).
@@ -58,10 +58,13 @@ namespace TransportesApp.Application.Services
 
             await _bonusRepository.AdicionarAsync(new BonusMotorista(motoristaId, ValorBonus));
 
+            await _carteiraMotoristaService.CreditarBonusAsync(
+                motoristaId, ValorBonus, "Bônus de boas-vindas (libera pra saque na 1ª corrida finalizada)");
+
             await _notificacaoService.CriarParaMotoristaAsync(
                 motoristaId,
                 "Você ganhou um bônus de R$ 20!",
-                "Finalize sua 1ª corrida e os R$ 20 entram no seu saldo, prontos pra sacar.",
+                "Os R$ 20 já estão no seu saldo. Finalize sua 1ª corrida pra liberar o saque.",
                 TipoNotificacao.Geral);
         }
 
@@ -77,13 +80,10 @@ namespace TransportesApp.Application.Services
             bonus.Liberar();
             await _bonusRepository.AtualizarAsync(bonus);
 
-            await _carteiraMotoristaService.CreditarBonusAsync(
-                motoristaId, bonus.Valor, "Bônus de boas-vindas — 1ª corrida finalizada");
-
             await _notificacaoService.CriarParaMotoristaAsync(
                 motoristaId,
                 "Bônus liberado!",
-                "Você finalizou sua 1ª corrida: os R$ 20 de bônus já estão no seu saldo.",
+                "Você finalizou sua 1ª corrida: os R$ 20 de bônus já estão liberados pra saque.",
                 TipoNotificacao.Geral);
         }
     }

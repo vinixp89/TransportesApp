@@ -2,8 +2,8 @@ namespace TransportesApp.Domain.Entities
 {
     // Bônus de boas-vindas de um motorista (ver BonusMotoristaService): a vaga é reservada no
     // cadastro (um registro por motorista, índice único em MotoristaId — contar linhas = vagas
-    // usadas), mas o valor só entra no saldo da carteira quando ele finaliza a 1ª corrida
-    // (Liberado/DataLiberacao). Até lá o dinheiro não existe na carteira, então não dá pra sacar.
+    // usadas) e o valor já é creditado no saldo da carteira, mas só pode ser sacado depois que ele
+    // finalizar a 1ª corrida (Liberado/DataLiberacao) — ver CarteiraMotoristaService.SolicitarSaqueAsync.
     public class BonusMotorista
     {
         public Guid Id { get; private set; }
