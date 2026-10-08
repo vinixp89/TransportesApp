@@ -19,6 +19,11 @@ namespace TransportesApp.Infrastructure.Repositories
             return await _context.BonusMotoristas.CountAsync();
         }
 
+        public async Task<int> ContarLiberadosAsync()
+        {
+            return await _context.BonusMotoristas.CountAsync(b => b.Liberado);
+        }
+
         public async Task<BonusMotorista?> ObterPorMotoristaIdAsync(Guid motoristaId)
         {
             return await _context.BonusMotoristas.FirstOrDefaultAsync(b => b.MotoristaId == motoristaId);

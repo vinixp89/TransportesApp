@@ -1,3 +1,4 @@
+using TransportesApp.Application.DTOs;
 using TransportesApp.Domain.Entities;
 using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
@@ -31,6 +32,15 @@ namespace TransportesApp.Application.Services
             _bonusRepository = bonusRepository;
             _carteiraMotoristaService = carteiraMotoristaService;
             _notificacaoService = notificacaoService;
+        }
+
+        public async Task<BonusMotoristaStatusResponse> ObterStatusAsync()
+        {
+            var reservadas = await _bonusRepository.ContarAsync();
+            var liberados = await _bonusRepository.ContarLiberadosAsync();
+
+            return new BonusMotoristaStatusResponse(
+                LimiteVagas, ValorBonus, reservadas, Math.Max(0, LimiteVagas - reservadas), liberados);
         }
 
         // Chamado pelo AuthController logo depois de criar o Motorista — quem chama é responsável por
