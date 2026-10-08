@@ -29,6 +29,7 @@ namespace TransportesApp.Api.Controllers
         private readonly IMemoryCache _cache;
         private readonly ILogger<AuthController> _logger;
         private readonly PromocaoLancamentoService _promocaoLancamentoService;
+        private readonly BonusMotoristaService _bonusMotoristaService;
         private readonly VerificacaoSmsService _verificacaoSmsService;
 
         // Código de redefinição de senha (6 dígitos) guardado em memória por 15 min, junto com o
@@ -48,6 +49,7 @@ namespace TransportesApp.Api.Controllers
             IMemoryCache cache,
             ILogger<AuthController> logger,
             PromocaoLancamentoService promocaoLancamentoService,
+            BonusMotoristaService bonusMotoristaService,
             VerificacaoSmsService verificacaoSmsService)
         {
             _userManager = userManager;
@@ -58,6 +60,7 @@ namespace TransportesApp.Api.Controllers
             _cache = cache;
             _logger = logger;
             _promocaoLancamentoService = promocaoLancamentoService;
+            _bonusMotoristaService = bonusMotoristaService;
             _verificacaoSmsService = verificacaoSmsService;
         }
 
@@ -93,7 +96,21 @@ namespace TransportesApp.Api.Controllers
                 request.Senha,
                 TipoUsuario.Motorista,
                 request.Motorista,
-                (dados, usuarioId, email) => _motoristaService.CriarAsync(dados, usuarioId),
+                async (dados, usuarioId, email) =>
+                {
+                    var motorista = await _motoristaService.CriarAsync(dados, usuarioId);
+
+                    // Bônus de boas-vindas (ver BonusMotoristaService) — nunca deve travar o cadastro
+                    // em si, mesmo padrão defensivo da promoção de cliente acima.
+                    try
+                    {
+                        await _bonusMotoristaService.ReservarAsync(motorista.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Falha ao reservar bônus de boas-vindas pro motorista {MotoristaId}", motorista.Id);
+                    }
+                },
                 _ => EmailTemplates.BoasVindasMotorista());
 
         private async Task<IActionResult> RegistrarAsync<TDadosPerfil>(

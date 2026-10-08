@@ -499,11 +499,11 @@ namespace TransportesApp.Application.Services
                 {
                     try
                     {
-                        await _bonusMotoristaService.ConcederSeElegivelAsync(motorista);
+                        await _bonusMotoristaService.LiberarAsync(motorista.Id);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Falha ao conceder bônus de boas-vindas ao motorista {MotoristaId}", motorista.Id);
+                        _logger.LogError(ex, "Falha ao liberar bônus de boas-vindas do motorista {MotoristaId}", motorista.Id);
                     }
                 }
             }
