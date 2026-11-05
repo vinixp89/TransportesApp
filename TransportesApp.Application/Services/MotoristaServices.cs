@@ -38,7 +38,8 @@ namespace TransportesApp.Application.Services
                 modeloVeiculo: request.ModeloVeiculo,
                 endereco: endereco,
                 anoVeiculo: request.AnoVeiculo,
-                tipoVeiculo: request.TipoVeiculo
+                tipoVeiculo: request.TipoVeiculo,
+                cnhCategoriaAEar: request.CnhCategoriaAEar
             );
 
             await _motoristaRepository.AdicionarAsync(motorista);
@@ -63,15 +64,36 @@ namespace TransportesApp.Application.Services
         // Salva os caminhos das 3 fotos de verificação — quem já salvou os arquivos em disco e gerou
         // essas URLs é o controller (MotoristasController.EnviarFotos), que lida com IFormFile/disco;
         // aqui só persiste as strings na entidade.
+        // Cada foto é opcional: null mantém a que já existe (quem só precisa mandar a que falta).
         public async Task<MotoristaResponse?> DefinirFotosAsync(
-            Guid usuarioId, string fotoSelfieUrl, string fotoVeiculoUrl, string fotoPlacaUrl)
+            Guid usuarioId, string? fotoSelfieUrl, string? fotoVeiculoUrl, string? fotoPlacaUrl, string? fotoCnhUrl = null)
         {
             var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
 
             if (motorista is null)
                 return null;
 
-            motorista.DefinirFotos(fotoSelfieUrl, fotoVeiculoUrl, fotoPlacaUrl);
+            motorista.AtualizarFotos(fotoSelfieUrl, fotoVeiculoUrl, fotoPlacaUrl, fotoCnhUrl);
+            await _motoristaRepository.AtualizarAsync(motorista);
+
+            return MapearParaResponse(motorista);
+        }
+
+        // Declaração de CNH A/EAR + aceite das regras da moto — as duas precisam estar marcadas.
+        public async Task<MotoristaResponse?> AceitarRegrasMotoAsync(Guid usuarioId, AceitarRegrasMotoRequest request)
+        {
+            if (!request.CnhCategoriaAEar)
+                throw new ArgumentException("Pra dirigir moto, sua CNH precisa ser categoria A com a observação EAR.");
+
+            if (!request.AceitoRegras)
+                throw new ArgumentException("Você precisa aceitar as regras da moto pra continuar.");
+
+            var motorista = await _motoristaRepository.ObterPorUsuarioIdAsync(usuarioId);
+
+            if (motorista is null)
+                return null;
+
+            motorista.AceitarRegrasMoto();
             await _motoristaRepository.AtualizarAsync(motorista);
 
             return MapearParaResponse(motorista);
@@ -115,6 +137,12 @@ namespace TransportesApp.Application.Services
         {
             var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
             return motorista?.FotoPlacaUrl;
+        }
+
+        public async Task<string?> ObterCaminhoFotoCnhAsync(Guid motoristaId)
+        {
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+            return motorista?.FotoCnhUrl;
         }
 
         // Edição manual dos dados pelo Admin (ver AdminMotoristasPage) — lança ArgumentException se
@@ -163,6 +191,7 @@ namespace TransportesApp.Application.Services
                 case "selfie": motorista.DefinirFotoSelfie(url); break;
                 case "veiculo": motorista.DefinirFotoVeiculo(url); break;
                 case "placa": motorista.DefinirFotoPlaca(url); break;
+                case "cnh": motorista.DefinirFotoCnh(url); break;
             }
 
             await _motoristaRepository.AtualizarAsync(motorista);
@@ -411,7 +440,11 @@ namespace TransportesApp.Application.Services
                 motorista.StatusConta,
                 motorista.BloqueadoAte,
                 motorista.MotivoBloqueio,
-                motorista.TipoVeiculo
+                motorista.TipoVeiculo,
+                motorista.FotoCnhUrl is not null,
+                motorista.CnhCategoriaAEar,
+                motorista.RegrasMotoAceitasEm is not null,
+                motorista.CadastroCompleto
             );
         }
     }

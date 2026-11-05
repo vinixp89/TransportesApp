@@ -19,8 +19,14 @@ namespace TransportesApp.Application.DTOs
         double? Latitude = null,
         double? Longitude = null,
         // Ausente (app antigo) = Carro.
-        TipoVeiculo TipoVeiculo = TipoVeiculo.Carro
+        TipoVeiculo TipoVeiculo = TipoVeiculo.Carro,
+        // Declaração de CNH categoria A com EAR — obrigatória pra moto (ver Motorista).
+        bool CnhCategoriaAEar = false
     );
+
+    // Declaração de CNH A/EAR + aceite das regras da moto (POST /Motoristas/regras-moto) — as duas
+    // precisam vir true.
+    public record AceitarRegrasMotoRequest(bool CnhCategoriaAEar, bool AceitoRegras);
 
     public record MotoristaResponse(
         Guid Id,
@@ -47,7 +53,13 @@ namespace TransportesApp.Application.DTOs
         StatusContaMotorista StatusConta,
         DateTime? BloqueadoAte,
         string? MotivoBloqueio,
-        TipoVeiculo TipoVeiculo = TipoVeiculo.Carro
+        TipoVeiculo TipoVeiculo = TipoVeiculo.Carro,
+        bool TemFotoCnh = false,
+        bool CnhCategoriaAEar = false,
+        bool RegrasMotoAceitas = false,
+        // Sem nenhuma pendência de fotos/documentos (ver Motorista.CadastroCompleto) — o app trava
+        // na tela de pendências enquanto for false.
+        bool CadastroCompleto = true
     );
 
     // Edição manual pelo Admin (ver AdminMotoristasPage) — mesmos campos de CriarMotoristaRequest,

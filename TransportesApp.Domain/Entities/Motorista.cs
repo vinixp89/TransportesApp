@@ -31,6 +31,23 @@ namespace TransportesApp.Domain.Entities
         // VeiculoElegivelParaExecutivo).
         public TipoVeiculo TipoVeiculo { get; private set; }
 
+        // Exigências extras de quem dirige moto (transporte remunerado de passageiro): declaração de
+        // CNH categoria A com a observação EAR (Exerce Atividade Remunerada), foto da CNH e o aceite
+        // das regras da moto (capacete, 1 passageiro maior de 18 anos). Carro não usa nada disso.
+        // Motoristas de moto cadastrados antes dessas exigências ficam com tudo pendente e são
+        // travados pelo app na tela de pendências (ver CadastroCompleto).
+        public bool CnhCategoriaAEar { get; private set; }
+        public string? FotoCnhUrl { get; private set; }
+        public DateTime? RegrasMotoAceitasEm { get; private set; }
+
+        public bool FotosBasicasEnviadas => FotoSelfieUrl is not null && FotoVeiculoUrl is not null && FotoPlacaUrl is not null;
+
+        // Cadastro sem nada pendente: as 3 fotos de verificação e, pra moto, também a declaração
+        // de CNH A/EAR, a foto da CNH e o aceite das regras da moto.
+        public bool CadastroCompleto =>
+            FotosBasicasEnviadas
+            && (TipoVeiculo != TipoVeiculo.Moto || (CnhCategoriaAEar && FotoCnhUrl is not null && RegrasMotoAceitasEm is not null));
+
         // Fotos de verificação (selfie, veículo, placa) pedidas no cadastro — ver
         // MotoristaService.DefinirFotosAsync. Guarda o caminho relativo do arquivo salvo no disco do
         // servidor (ver MotoristasController), não o binário. Nullable porque quem se cadastrou antes
@@ -65,7 +82,7 @@ namespace TransportesApp.Domain.Entities
 
 
 
-        public Motorista(Guid usuarioId, string nome, string cnh, string cpf, string telefone, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo, TipoVeiculo tipoVeiculo = TipoVeiculo.Carro)
+        public Motorista(Guid usuarioId, string nome, string cnh, string cpf, string telefone, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo, TipoVeiculo tipoVeiculo = TipoVeiculo.Carro, bool cnhCategoriaAEar = false)
         {
 
             if (string.IsNullOrWhiteSpace(nome))
@@ -82,6 +99,9 @@ namespace TransportesApp.Domain.Entities
 
             if (endereco is null)
                 throw new ArgumentException("Endereço é obrigatório.");
+
+            if (tipoVeiculo == TipoVeiculo.Moto && !cnhCategoriaAEar)
+                throw new ArgumentException("Pra dirigir moto, sua CNH precisa ser categoria A com a observação EAR (exerce atividade remunerada).");
 
             if (anoVeiculo > DateTime.UtcNow.Year)
                 throw new ArgumentException("Ano de fabricação do veículo não pode ser no futuro.");
@@ -104,6 +124,7 @@ namespace TransportesApp.Domain.Entities
             DataCadastro = DateTime.UtcNow;
             AnoVeiculo = anoVeiculo;
             TipoVeiculo = tipoVeiculo;
+            CnhCategoriaAEar = cnhCategoriaAEar;
         }
 
         // Correção feita pelo Admin (ex: motorista que se cadastrou como carro mas dirige moto) —
@@ -148,6 +169,28 @@ namespace TransportesApp.Domain.Entities
         public void DefinirFotoSelfie(string url) => FotoSelfieUrl = url;
         public void DefinirFotoVeiculo(string url) => FotoVeiculoUrl = url;
         public void DefinirFotoPlaca(string url) => FotoPlacaUrl = url;
+        public void DefinirFotoCnh(string url) => FotoCnhUrl = url;
+
+        // Envio pelo próprio motorista (ver MotoristasController.EnviarFotos): cada foto é opcional
+        // aqui — null mantém a que já existe, pra quem só precisa mandar a que falta (ex: só a CNH).
+        public void AtualizarFotos(string? selfieUrl, string? veiculoUrl, string? placaUrl, string? cnhUrl)
+        {
+            if (selfieUrl is not null) FotoSelfieUrl = selfieUrl;
+            if (veiculoUrl is not null) FotoVeiculoUrl = veiculoUrl;
+            if (placaUrl is not null) FotoPlacaUrl = placaUrl;
+            if (cnhUrl is not null) FotoCnhUrl = cnhUrl;
+        }
+
+        // Declaração de CNH categoria A com EAR + aceite das regras da moto (capacete, 1 passageiro
+        // maior de 18 anos) — só faz sentido pra moto (ver MotoristasController.AceitarRegrasMoto).
+        public void AceitarRegrasMoto()
+        {
+            if (TipoVeiculo != TipoVeiculo.Moto)
+                throw new InvalidOperationException("Essas regras são só para motoristas de moto.");
+
+            CnhCategoriaAEar = true;
+            RegrasMotoAceitasEm = DateTime.UtcNow;
+        }
 
         public void AtualizarLocalizacao(double latitude , double longitude)
         {

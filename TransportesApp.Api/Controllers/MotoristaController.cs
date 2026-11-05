@@ -42,13 +42,16 @@ namespace TransportesApp.Api.Controllers
             return Ok(motorista);
         }
 
-        // Fotos de verificação (selfie, veículo, placa) pedidas depois do cadastro — sempre as 3
-        // juntas, numa única tela do app. Salva em disco (não no banco) dentro de uma pasta por
+        // Fotos de verificação (selfie, veículo, placa e, pra moto, a CNH) pedidas depois do cadastro.
+        // Cada foto é opcional no envio — o app manda só as que ainda faltam —, mas depois de salvar o
+        // que veio, as obrigatórias (as 3 básicas, mais a CNH pra moto) precisam existir: ou vieram
+        // agora ou já estavam gravadas. Salva em disco (não no banco) dentro de uma pasta por
         // motorista, pra nunca misturar arquivo de conta diferente.
         [Authorize(Roles = "Motorista")]
         [HttpPost("fotos")]
-        [RequestSizeLimit(30 * 1024 * 1024)]
-        public async Task<IActionResult> EnviarFotos(IFormFile selfie, IFormFile fotoVeiculo, IFormFile fotoPlaca)
+        [RequestSizeLimit(40 * 1024 * 1024)]
+        public async Task<IActionResult> EnviarFotos(
+            IFormFile? selfie, IFormFile? fotoVeiculo, IFormFile? fotoPlaca, IFormFile? fotoCnh)
         {
             var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? User.FindFirstValue("sub")!);
@@ -58,27 +61,67 @@ namespace TransportesApp.Api.Controllers
             if (motorista is null)
                 return BadRequest(new { mensagem = "Cadastre-se como motorista antes de enviar fotos." });
 
-            foreach (var (nome, arquivo) in new[] { ("selfie", selfie), ("fotoVeiculo", fotoVeiculo), ("fotoPlaca", fotoPlaca) })
+            var ehMoto = motorista.TipoVeiculo == TransportesApp.Domain.Enums.TipoVeiculo.Moto;
+
+            var fotos = new[]
             {
-                if (arquivo is null || arquivo.Length == 0)
-                    return BadRequest(new { mensagem = $"A foto \"{nome}\" é obrigatória." });
+                (Nome: "selfie", Arquivo: selfie, JaTem: motorista.TemFotoSelfie, Obrigatoria: true),
+                (Nome: "fotoVeiculo", Arquivo: fotoVeiculo, JaTem: motorista.TemFotoVeiculo, Obrigatoria: true),
+                (Nome: "fotoPlaca", Arquivo: fotoPlaca, JaTem: motorista.TemFotoPlaca, Obrigatoria: true),
+                (Nome: "fotoCnh", Arquivo: fotoCnh, JaTem: motorista.TemFotoCnh, Obrigatoria: ehMoto),
+            };
 
-                if (arquivo.Length > TamanhoMaximoFotoBytes)
-                    return BadRequest(new { mensagem = $"A foto \"{nome}\" passa do limite de 8 MB." });
+            foreach (var foto in fotos)
+            {
+                var enviada = foto.Arquivo is not null && foto.Arquivo.Length > 0;
 
-                if (!ExtensoesAceitas.Contains(Path.GetExtension(arquivo.FileName)))
-                    return BadRequest(new { mensagem = $"A foto \"{nome}\" precisa ser JPG ou PNG." });
+                if (!enviada)
+                {
+                    if (foto.Obrigatoria && !foto.JaTem)
+                        return BadRequest(new { mensagem = $"A foto \"{foto.Nome}\" é obrigatória." });
+
+                    continue;
+                }
+
+                if (foto.Arquivo!.Length > TamanhoMaximoFotoBytes)
+                    return BadRequest(new { mensagem = $"A foto \"{foto.Nome}\" passa do limite de 8 MB." });
+
+                if (!ExtensoesAceitas.Contains(Path.GetExtension(foto.Arquivo.FileName)))
+                    return BadRequest(new { mensagem = $"A foto \"{foto.Nome}\" precisa ser JPG ou PNG." });
             }
 
             var pastaMotorista = Path.Combine(_ambiente.ContentRootPath, "uploads", "motoristas", motorista.Id.ToString());
             Directory.CreateDirectory(pastaMotorista);
 
-            var selfieUrl = await SalvarArquivoAsync(selfie, pastaMotorista, "selfie", motorista.Id);
-            var veiculoUrl = await SalvarArquivoAsync(fotoVeiculo, pastaMotorista, "veiculo", motorista.Id);
-            var placaUrl = await SalvarArquivoAsync(fotoPlaca, pastaMotorista, "placa", motorista.Id);
+            static bool Veio(IFormFile? arquivo) => arquivo is not null && arquivo.Length > 0;
 
-            var atualizado = await _motoristaService.DefinirFotosAsync(usuarioId, selfieUrl, veiculoUrl, placaUrl);
+            var selfieUrl = Veio(selfie) ? await SalvarArquivoAsync(selfie!, pastaMotorista, "selfie", motorista.Id) : null;
+            var veiculoUrl = Veio(fotoVeiculo) ? await SalvarArquivoAsync(fotoVeiculo!, pastaMotorista, "veiculo", motorista.Id) : null;
+            var placaUrl = Veio(fotoPlaca) ? await SalvarArquivoAsync(fotoPlaca!, pastaMotorista, "placa", motorista.Id) : null;
+            var cnhUrl = Veio(fotoCnh) ? await SalvarArquivoAsync(fotoCnh!, pastaMotorista, "cnh", motorista.Id) : null;
+
+            var atualizado = await _motoristaService.DefinirFotosAsync(usuarioId, selfieUrl, veiculoUrl, placaUrl, cnhUrl);
             return Ok(atualizado);
+        }
+
+        // Declaração de CNH categoria A com EAR + aceite das regras da moto (capacete, 1 passageiro
+        // maior de 18 anos) — só motorista de moto, e as duas caixas precisam vir marcadas.
+        [Authorize(Roles = "Motorista")]
+        [HttpPost("regras-moto")]
+        public async Task<IActionResult> AceitarRegrasMoto([FromBody] AceitarRegrasMotoRequest request)
+        {
+            var usuarioId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub")!);
+
+            try
+            {
+                var resultado = await _motoristaService.AceitarRegrasMotoAsync(usuarioId, request);
+                return resultado is null ? BadRequest(new { mensagem = "Cadastro não encontrado pra essa conta." }) : Ok(resultado);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
         }
 
         private static async Task<string> SalvarArquivoAsync(IFormFile arquivo, string pastaDestino, string nomeBase, Guid motoristaId)
@@ -179,6 +222,12 @@ namespace TransportesApp.Api.Controllers
         public Task<IActionResult> AdminEnviarFotoPlaca(Guid id, IFormFile arquivo)
             => AdminSalvarFotoAsync(id, arquivo, "placa");
 
+        [Authorize(Roles = "Admin")]
+        [HttpPost("{id:guid}/foto-cnh")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public Task<IActionResult> AdminEnviarFotoCnh(Guid id, IFormFile arquivo)
+            => AdminSalvarFotoAsync(id, arquivo, "cnh");
+
         private async Task<IActionResult> AdminSalvarFotoAsync(Guid motoristaId, IFormFile arquivo, string tipo)
         {
             if (arquivo is null || arquivo.Length == 0)
@@ -259,6 +308,11 @@ namespace TransportesApp.Api.Controllers
         [HttpGet("{id:guid}/foto-placa")]
         public async Task<IActionResult> ObterFotoPlaca(Guid id)
             => await ServirFotoAsync(await _motoristaService.ObterCaminhoFotoPlacaAsync(id));
+
+        [Authorize(Roles = "Admin")]
+        [HttpGet("{id:guid}/foto-cnh")]
+        public async Task<IActionResult> ObterFotoCnh(Guid id)
+            => await ServirFotoAsync(await _motoristaService.ObterCaminhoFotoCnhAsync(id));
 
         private Task<IActionResult> ServirFotoAsync(string? caminhoRelativo)
         {

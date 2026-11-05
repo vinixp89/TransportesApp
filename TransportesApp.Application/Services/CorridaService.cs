@@ -412,6 +412,11 @@ namespace TransportesApp.Application.Services
             // encontrado cai em Carro (mesmo default de quem se cadastrou antes da moto existir).
             var tipoVeiculoMotorista = motorista?.TipoVeiculo ?? TipoVeiculo.Carro;
 
+            // Sem as 3 fotos de verificação (selfie, veículo e placa) o motorista não vê corrida
+            // nenhuma — ver AtribuirMotoristaAsync, que recusa com a mensagem explicando.
+            if (motorista is null || !motorista.FotosBasicasEnviadas)
+                return Enumerable.Empty<CorridaResponse>();
+
             return corridas
                 .Where(c => c.Status == StatusCorrida.Solicitada)
                 .Where(c => c.TipoVeiculo == tipoVeiculoMotorista)
@@ -443,6 +448,11 @@ namespace TransportesApp.Application.Services
 
             if (motorista is null)
                 throw new InvalidOperationException("Motorista não encontrado.");
+
+            if (!motorista.FotosBasicasEnviadas)
+                throw new InvalidOperationException(
+                    "Pra aceitar corridas você precisa enviar as fotos de verificação (selfie, veículo e placa). " +
+                    "Abra o app, complete o cadastro e atualize o app se não aparecer a tela de envio.");
 
             if (corrida.TipoVeiculo != motorista.TipoVeiculo)
                 throw new InvalidOperationException(corrida.TipoVeiculo == TipoVeiculo.Moto

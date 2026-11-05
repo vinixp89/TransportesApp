@@ -588,6 +588,9 @@ namespace TransportesApp.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<bool>("CnhCategoriaAEar")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Cpf")
                         .IsRequired()
                         .HasMaxLength(11)
@@ -598,6 +601,10 @@ namespace TransportesApp.Infrastructure.Migrations
 
                     b.Property<DateTime>("DataCadastro")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FotoCnhUrl")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("FotoPlacaUrl")
                         .HasMaxLength(300)
@@ -635,6 +642,9 @@ namespace TransportesApp.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime?>("RegrasMotoAceitasEm")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
