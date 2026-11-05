@@ -25,28 +25,71 @@ namespace TransportesApp.Infrastructure.Gateways
             var tokensInvalidos = new List<string>();
 
             foreach (var lote in tokens.Chunk(TamanhoLote))
+                tokensInvalidos.AddRange(await EnviarLoteAsync(lote, titulo, mensagem));
+
+            return tokensInvalidos;
+        }
+
+        // O Expo só aceita, por requisição, tokens de um único projeto (app) — um token do app
+        // Motorista registrado como Cliente (ex: mesma conta logada nos dois apps) derrubava o
+        // broadcast inteiro com PUSH_TOO_MANY_EXPERIENCE_IDS. Quando isso acontece, a própria
+        // resposta do Expo diz quais tokens pertencem a qual projeto (details), então reenviamos um
+        // grupo por vez — cada grupo já é de um projeto só, então não cai nesse erro de novo.
+        private async Task<IReadOnlyList<string>> EnviarLoteAsync(string[] lote, string titulo, string mensagem)
+        {
+            var mensagens = lote.Select(token => new ExpoMensagem(token, titulo, mensagem, "default")).ToArray();
+
+            using var response = await _httpClient.PostAsJsonAsync("/--/api/v2/push/send", mensagens, JsonOpcoes);
+            var corpoResposta = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
             {
-                var mensagens = lote.Select(token => new ExpoMensagem(token, titulo, mensagem, "default")).ToArray();
+                var grupos = response.StatusCode == System.Net.HttpStatusCode.BadRequest
+                    ? ExtrairGruposPorProjeto(corpoResposta)
+                    : null;
 
-                using var response = await _httpClient.PostAsJsonAsync("/--/api/v2/push/send", mensagens, JsonOpcoes);
-                var corpoResposta = await response.Content.ReadAsStringAsync();
-
-                if (!response.IsSuccessStatusCode)
-                    throw new InvalidOperationException($"Falha ao enviar push pelo Expo ({(int)response.StatusCode}): {corpoResposta}");
-
-                var resultado = JsonSerializer.Deserialize<ExpoRespostaEnvio>(corpoResposta, JsonOpcoes);
-
-                if (resultado?.Data is null)
-                    continue;
-
-                for (var i = 0; i < resultado.Data.Length && i < lote.Length; i++)
+                if (grupos is { Count: > 1 })
                 {
-                    if (resultado.Data[i].Details?.Error == "DeviceNotRegistered")
-                        tokensInvalidos.Add(lote[i]);
+                    var invalidosDosGrupos = new List<string>();
+
+                    foreach (var grupo in grupos)
+                        invalidosDosGrupos.AddRange(await EnviarLoteAsync(grupo, titulo, mensagem));
+
+                    return invalidosDosGrupos;
                 }
+
+                throw new InvalidOperationException($"Falha ao enviar push pelo Expo ({(int)response.StatusCode}): {corpoResposta}");
+            }
+
+            var resultado = JsonSerializer.Deserialize<ExpoRespostaEnvio>(corpoResposta, JsonOpcoes);
+            var tokensInvalidos = new List<string>();
+
+            if (resultado?.Data is null)
+                return tokensInvalidos;
+
+            for (var i = 0; i < resultado.Data.Length && i < lote.Length; i++)
+            {
+                if (resultado.Data[i].Details?.Error == "DeviceNotRegistered")
+                    tokensInvalidos.Add(lote[i]);
             }
 
             return tokensInvalidos;
+        }
+
+        // Lê o "details" do erro PUSH_TOO_MANY_EXPERIENCE_IDS: { "@dono/projeto": ["token", ...], ... }.
+        private static List<string[]>? ExtrairGruposPorProjeto(string corpoResposta)
+        {
+            try
+            {
+                var resposta = JsonSerializer.Deserialize<ExpoRespostaErro>(corpoResposta, JsonOpcoes);
+                var erro = resposta?.Errors?.FirstOrDefault(e => e.Code == "PUSH_TOO_MANY_EXPERIENCE_IDS");
+
+                return erro?.Details?.Values.Where(tokens => tokens.Length > 0).ToList();
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         private static readonly JsonSerializerOptions JsonOpcoes = new(JsonSerializerDefaults.Web);
@@ -55,6 +98,15 @@ namespace TransportesApp.Infrastructure.Gateways
 
         private sealed record ExpoRespostaEnvio(
             [property: JsonPropertyName("data")] ExpoTicket[]? Data
+        );
+
+        private sealed record ExpoRespostaErro(
+            [property: JsonPropertyName("errors")] ExpoErro[]? Errors
+        );
+
+        private sealed record ExpoErro(
+            [property: JsonPropertyName("code")] string? Code,
+            [property: JsonPropertyName("details")] Dictionary<string, string[]>? Details
         );
 
         private sealed record ExpoTicket(
