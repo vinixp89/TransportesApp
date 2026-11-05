@@ -15,6 +15,9 @@ namespace TransportesApp.Domain.Entities
         // de dados. Um pacote Executivo só pode ser usado numa corrida Executivo da mesma faixa (ver
         // CorridaService.ValidarPacoteAsync).
         public CategoriaCorrida Categoria { get; private set; }
+        // Carro por padrão (pacotes anteriores à moto). Pacote de moto só vale em corrida de moto e
+        // vice-versa (ver CorridaService.ValidarPacoteAsync).
+        public TipoVeiculo TipoVeiculo { get; private set; }
         public int QuantidadeTotal { get; private set; }
         public int QuantidadeUsada { get; private set; }
         public decimal PrecoPago { get; private set; }
@@ -46,8 +49,11 @@ namespace TransportesApp.Domain.Entities
         // pacote já utilizável sem cobrar nada.
         public PacoteCorridas(
             Guid clienteId, CorFaixa faixa, int quantidade, decimal percentualDesconto = 0m, bool pago = false,
-            CategoriaCorrida categoria = CategoriaCorrida.Normal)
+            CategoriaCorrida categoria = CategoriaCorrida.Normal, TipoVeiculo tipoVeiculo = TipoVeiculo.Carro)
         {
+            if (tipoVeiculo == TipoVeiculo.Moto && categoria == CategoriaCorrida.Executivo)
+                throw new ArgumentException("A categoria Executivo é só para carro.");
+
             if (!FaixaDistancia.TamanhosPacoteDisponiveis.Contains(quantidade))
                 throw new ArgumentException(
                     $"Pacote de {quantidade} corridas não é um tamanho disponível. Tamanhos válidos: {string.Join(", ", FaixaDistancia.TamanhosPacoteDisponiveis)}.");
@@ -61,11 +67,12 @@ namespace TransportesApp.Domain.Entities
             ClienteId = clienteId;
             Faixa = faixa;
             Categoria = categoria;
+            TipoVeiculo = tipoVeiculo;
             QuantidadeTotal = quantidade;
             QuantidadeUsada = 0;
             // Preço fica travado no momento da compra — se o preço avulso da faixa ou o plano do
             // cliente mudarem depois, não afeta pacotes já comprados.
-            PrecoPago = Math.Round(faixaDistancia.ObterPrecoPacote(quantidade, categoria) * (1 - percentualDesconto), 2, MidpointRounding.AwayFromZero);
+            PrecoPago = Math.Round(faixaDistancia.ObterPrecoPacote(quantidade, categoria, tipoVeiculo) * (1 - percentualDesconto), 2, MidpointRounding.AwayFromZero);
             DataCompra = DateTime.UtcNow;
             Pago = pago;
         }

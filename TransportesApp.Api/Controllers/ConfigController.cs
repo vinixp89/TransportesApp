@@ -28,7 +28,16 @@ namespace TransportesApp.Api.Controllers
             var valorConfig = _configuration["Features:CarteiraMotoristaLiberada"];
             var carteiraMotoristaLiberada = bool.TryParse(valorConfig, out var liberada) && liberada;
 
-            return Ok(new { carteiraMotoristaLiberada });
+            // Versão mais recente de cada app já liberada na Play Store (versionCode, o número que o
+            // EAS mostra no build) — os apps comparam com a versão instalada e mostram o pop-up
+            // "Nova versão disponível" quando a deles é menor. 0 (padrão, variável ausente) = nunca
+            // mostrar. Pra avisar de uma versão nova: depois que ela estiver liberada no Google Play,
+            // trocar APP_CLIENTE_VERSAO_ATUAL / APP_MOTORISTA_VERSAO_ATUAL no .env do servidor e
+            // reiniciar a API (docker compose up -d api) — sem novo build.
+            var clienteVersaoAtual = int.TryParse(_configuration["Apps:ClienteVersaoAtual"], out var vCliente) ? vCliente : 0;
+            var motoristaVersaoAtual = int.TryParse(_configuration["Apps:MotoristaVersaoAtual"], out var vMotorista) ? vMotorista : 0;
+
+            return Ok(new { carteiraMotoristaLiberada, clienteVersaoAtual, motoristaVersaoAtual });
         }
 
         // Texto dos termos de uso/contrato exibido na tela de aceite do cadastro (Cliente e

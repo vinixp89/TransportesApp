@@ -31,6 +31,17 @@ namespace TransportesApp.Domain.Enums
         Executivo
     }
 
+    // Carro em primeiro (valor 0): motoristas, corridas e pacotes que já existiam antes da moto são
+    // todos de carro, então o default do banco e do JSON (campo ausente) preserva o comportamento
+    // de antes — inclusive pra versões antigas dos apps, que não mandam esse campo. Moto só pode
+    // ser da categoria Normal (Executivo é só de carro), só vai até FaixaDistancia.DistanciaMaximaMotoKm
+    // e só é atendida por motorista de moto (e vice-versa) — ver CorridaService.
+    public enum TipoVeiculo
+    {
+        Carro,
+        Moto
+    }
+
     public enum StatusCorrida
     {
 

@@ -16,6 +16,9 @@ namespace TransportesApp.Domain.Entities
         public double? DistanciaRealKm { get; private set; }
         public CorFaixa FaixaContratada { get; private set; }
         public CategoriaCorrida Categoria { get; private set; }
+        // Carro por padrão (corridas anteriores à moto) — só motorista do mesmo tipo vê e aceita a
+        // corrida (ver CorridaService.ListarPendentesAsync/AtribuirMotoristaAsync).
+        public TipoVeiculo TipoVeiculo { get; private set; }
         public TipoConsumo TipoConsumo { get; private set; }
 
         public Guid? PacoteCorridasId { get; private set; }
@@ -33,8 +36,11 @@ namespace TransportesApp.Domain.Entities
 
 
         public Corrida(Guid clienteId,Endereco origem,Endereco destino,double distanciaEstimadaKm, FaixaDistancia faixa, TipoConsumo tipoConsumo,
-             Guid? pacoteCorridasId, CategoriaCorrida categoria = CategoriaCorrida.Normal)
+             Guid? pacoteCorridasId, CategoriaCorrida categoria = CategoriaCorrida.Normal, TipoVeiculo tipoVeiculo = TipoVeiculo.Carro)
         {
+            if (tipoVeiculo == TipoVeiculo.Moto && categoria == CategoriaCorrida.Executivo)
+                throw new ArgumentException("A categoria Executivo é só para carro.");
+
 
             if (tipoConsumo == TipoConsumo.Pacote && pacoteCorridasId is null)
                 throw new ArgumentException("Corrida por pacote  precisa informa  o PacoteCorridasId");
@@ -46,6 +52,7 @@ namespace TransportesApp.Domain.Entities
             DistanciaEstimadaKm = distanciaEstimadaKm;
             FaixaContratada = faixa.Cor;
             Categoria = categoria;
+            TipoVeiculo = tipoVeiculo;
             TipoConsumo = tipoConsumo;
             // Em corrida avulsa, ignora qualquer pacoteCorridasId que venha no request (ex: o Guid de
             // exemplo que o Swagger preenche sozinho) — só grava o Id do pacote quando o consumo é por Pacote.

@@ -50,6 +50,9 @@ namespace TransportesApp.Application.Services
             var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId)
                 ?? throw new InvalidOperationException("Motorista não encontrado.");
 
+            if (motorista.TipoVeiculo == TipoVeiculo.Moto)
+                throw new InvalidOperationException("A categoria Executivo é só para motoristas de carro.");
+
             if (DateTime.UtcNow.Year - anoVeiculo > 3)
                 throw new InvalidOperationException("A categoria Executivo exige veículo com até 3 anos de fabricação.");
 

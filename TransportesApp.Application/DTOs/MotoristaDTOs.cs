@@ -17,7 +17,9 @@ namespace TransportesApp.Application.DTOs
         string Estado,
         string? Complemento = null,
         double? Latitude = null,
-        double? Longitude = null
+        double? Longitude = null,
+        // Ausente (app antigo) = Carro.
+        TipoVeiculo TipoVeiculo = TipoVeiculo.Carro
     );
 
     public record MotoristaResponse(
@@ -44,7 +46,8 @@ namespace TransportesApp.Application.DTOs
         bool TermosAceitos,
         StatusContaMotorista StatusConta,
         DateTime? BloqueadoAte,
-        string? MotivoBloqueio
+        string? MotivoBloqueio,
+        TipoVeiculo TipoVeiculo = TipoVeiculo.Carro
     );
 
     // Edição manual pelo Admin (ver AdminMotoristasPage) — mesmos campos de CriarMotoristaRequest,
@@ -65,7 +68,10 @@ namespace TransportesApp.Application.DTOs
         string Estado,
         string? Complemento = null,
         double? Latitude = null,
-        double? Longitude = null
+        double? Longitude = null,
+        // null = não mexe (o formulário antigo do Admin não manda esse campo). Serve pra corrigir
+        // quem se cadastrou como carro mas dirige moto, ou o contrário.
+        TipoVeiculo? TipoVeiculo = null
     );
 
     // Dias null = suspensão por tempo indeterminado ("definitivamente"); com valor, a conta volta a

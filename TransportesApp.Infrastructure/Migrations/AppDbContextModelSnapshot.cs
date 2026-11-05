@@ -494,6 +494,9 @@ namespace TransportesApp.Infrastructure.Migrations
                     b.Property<int>("TipoConsumo")
                         .HasColumnType("integer");
 
+                    b.Property<int>("TipoVeiculo")
+                        .HasColumnType("integer");
+
                     b.Property<decimal?>("ValorExcedente")
                         .HasColumnType("numeric");
 
@@ -650,6 +653,9 @@ namespace TransportesApp.Infrastructure.Migrations
                     b.Property<bool>("TermosAceitos")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("TipoVeiculo")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("UsuarioId")
                         .HasColumnType("uuid");
 
@@ -741,6 +747,9 @@ namespace TransportesApp.Infrastructure.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("QuantidadeUsada")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TipoVeiculo")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");

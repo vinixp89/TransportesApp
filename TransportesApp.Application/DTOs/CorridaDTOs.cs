@@ -25,7 +25,9 @@ namespace TransportesApp.Application.DTOs
             EnderecoRequest Destino,
             TipoConsumo TipoConsumo,
             Guid? PacoteCorridasId,
-            CategoriaCorrida Categoria = CategoriaCorrida.Normal
+            CategoriaCorrida Categoria = CategoriaCorrida.Normal,
+            // Ausente (apps antigos) = Carro. Moto é só da categoria Normal e vai até 40km.
+            TipoVeiculo TipoVeiculo = TipoVeiculo.Carro
         );
 
     // Resposta de POST /Corridas/avulsa (ver CorridaService.IniciarCorridaAvulsaAsync) — a corrida já
@@ -73,7 +75,8 @@ namespace TransportesApp.Application.DTOs
             DateTime DataSolicitacao,
             // Só é preenchido na criação da corrida, quando o Google não teve certeza total de algum
             // endereço informado (correspondência parcial). Fica null nas demais consultas.
-            IReadOnlyList<string>? AvisosEndereco = null
+            IReadOnlyList<string>? AvisosEndereco = null,
+            TipoVeiculo TipoVeiculo = TipoVeiculo.Carro
         );
 
     // Versão do CorridaResponse pro painel de Admin: troca os IDs de cliente/motorista (que sozinhos
@@ -96,7 +99,8 @@ namespace TransportesApp.Application.DTOs
             decimal ValorMotorista,
             TipoConsumo TipoConsumo,
             StatusCorrida Status,
-            DateTime DataSolicitacao
+            DateTime DataSolicitacao,
+            TipoVeiculo TipoVeiculo = TipoVeiculo.Carro
         );
 
     // Localização atual do motorista atribuído à corrida — consultada pelo cliente pra acompanhar
@@ -130,6 +134,8 @@ namespace TransportesApp.Application.DTOs
             CorFaixa Faixa,
             decimal ValorReferenciaNormal,
             decimal ValorReferenciaExecutivo,
-            IReadOnlyList<string>? AvisosEndereco
+            IReadOnlyList<string>? AvisosEndereco,
+            // Preço da mesma viagem de moto — null quando passa de 40km (moto não atende).
+            decimal? ValorReferenciaMoto = null
         );
 }

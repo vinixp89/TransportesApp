@@ -23,16 +23,25 @@ namespace TransportesApp.Application.Services
         }
 
         // Não depende do repositório — é só a tabela de preços do domínio, montada pra exibição.
-        public IEnumerable<CatalogoPacoteResponse> ObterCatalogo(CategoriaCorrida categoria = CategoriaCorrida.Normal)
+        // Moto só tem catálogo da categoria Normal e só das faixas que atende (até 40km) — Executivo é
+        // só de carro.
+        public IEnumerable<CatalogoPacoteResponse> ObterCatalogo(
+            CategoriaCorrida categoria = CategoriaCorrida.Normal, TipoVeiculo tipoVeiculo = TipoVeiculo.Carro)
         {
-            return FaixaDistancia.ListarTodas().Select(faixa => new CatalogoPacoteResponse(
-                faixa.Cor,
-                categoria,
-                faixa.ObterPreco(categoria),
-                FaixaDistancia.TamanhosPacoteDisponiveis
-                    .Select(quantidade => new TamanhoPacoteResponse(quantidade, faixa.ObterPrecoPacote(quantidade, categoria)))
-                    .ToList()
-            ));
+            if (tipoVeiculo == TipoVeiculo.Moto && categoria == CategoriaCorrida.Executivo)
+                return Enumerable.Empty<CatalogoPacoteResponse>();
+
+            return FaixaDistancia.ListarTodas()
+                .Where(faixa => tipoVeiculo == TipoVeiculo.Carro || faixa.AtendeMoto)
+                .Select(faixa => new CatalogoPacoteResponse(
+                    faixa.Cor,
+                    categoria,
+                    faixa.ObterPreco(categoria, tipoVeiculo),
+                    FaixaDistancia.TamanhosPacoteDisponiveis
+                        .Select(quantidade => new TamanhoPacoteResponse(quantidade, faixa.ObterPrecoPacote(quantidade, categoria, tipoVeiculo)))
+                        .ToList(),
+                    tipoVeiculo
+                ));
         }
 
         // Cria o pacote (ainda Pago=false) e abre o checkout do Mercado Pago (cartão/boleto) pelo
@@ -42,7 +51,7 @@ namespace TransportesApp.Application.Services
         {
             var pacote = await CriarPendentePagamentoAsync(request, clienteId);
 
-            var descricao = $"Pacote de {pacote.QuantidadeTotal} corridas — faixa {pacote.Faixa}";
+            var descricao = $"Pacote de {pacote.QuantidadeTotal} corridas — faixa {pacote.Faixa}{(pacote.TipoVeiculo == TipoVeiculo.Moto ? " (moto)" : "")}";
             var pagamento = await _pagamentoService.IniciarPagamentoAsync(
                 clienteId, TipoReferenciaPagamento.PacoteCorridas, pacote.Id, pacote.PrecoPago, descricao, emailCliente);
 
@@ -54,7 +63,7 @@ namespace TransportesApp.Application.Services
         {
             var pacote = await CriarPendentePagamentoAsync(request, clienteId);
 
-            var descricao = $"Pacote de {pacote.QuantidadeTotal} corridas — faixa {pacote.Faixa}";
+            var descricao = $"Pacote de {pacote.QuantidadeTotal} corridas — faixa {pacote.Faixa}{(pacote.TipoVeiculo == TipoVeiculo.Moto ? " (moto)" : "")}";
             var pix = await _pagamentoService.IniciarPagamentoPixAsync(
                 clienteId, TipoReferenciaPagamento.PacoteCorridas, pacote.Id, pacote.PrecoPago, descricao, emailCliente, cpfCliente);
 
@@ -63,10 +72,14 @@ namespace TransportesApp.Application.Services
 
         private async Task<PacoteCorridas> CriarPendentePagamentoAsync(CriarPacoteCorridasRequest request, Guid clienteId)
         {
+            if (request.TipoVeiculo == TipoVeiculo.Moto && !FaixaDistancia.ObterPorCor(request.Faixa).AtendeMoto)
+                throw new ArgumentException($"A faixa {request.Faixa} não é atendida por moto (limite de {FaixaDistancia.DistanciaMaximaMotoKm:0}km).");
+
             var percentualDesconto = await ObterPercentualDescontoAsync(clienteId);
 
             var pacote = new PacoteCorridas(
-                clienteId, request.Faixa, request.Quantidade, percentualDesconto, categoria: request.Categoria);
+                clienteId, request.Faixa, request.Quantidade, percentualDesconto, categoria: request.Categoria,
+                tipoVeiculo: request.TipoVeiculo);
 
             await _pacoteCorridasRepository.AdicionarAsync(pacote);
 
@@ -112,7 +125,8 @@ namespace TransportesApp.Application.Services
                 pacote.QuantidadeUsada,
                 pacote.QuantidadeRestante,
                 pacote.PrecoPago,
-                pacote.DataCompra
+                pacote.DataCompra,
+                pacote.TipoVeiculo
             );
         }
     }

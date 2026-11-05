@@ -25,6 +25,12 @@ namespace TransportesApp.Domain.Entities
         // exigência existir não têm esse dado preenchido.
         public int? AnoVeiculo { get; private set; }
 
+        // Carro ou moto, escolhido no cadastro. Motorista de moto só vê/aceita corridas de moto e o
+        // de carro só as de carro (ver CorridaService.ListarPendentesAsync). Quem se cadastrou antes
+        // da moto existir é carro (valor 0 do enum). Moto não pode ser Executivo (ver
+        // VeiculoElegivelParaExecutivo).
+        public TipoVeiculo TipoVeiculo { get; private set; }
+
         // Fotos de verificação (selfie, veículo, placa) pedidas no cadastro — ver
         // MotoristaService.DefinirFotosAsync. Guarda o caminho relativo do arquivo salvo no disco do
         // servidor (ver MotoristasController), não o binário. Nullable porque quem se cadastrou antes
@@ -59,7 +65,7 @@ namespace TransportesApp.Domain.Entities
 
 
 
-        public Motorista(Guid usuarioId, string nome, string cnh, string cpf, string telefone, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo)
+        public Motorista(Guid usuarioId, string nome, string cnh, string cpf, string telefone, string placaVeiculo, string modeloVeiculo, Endereco endereco, int anoVeiculo, TipoVeiculo tipoVeiculo = TipoVeiculo.Carro)
         {
 
             if (string.IsNullOrWhiteSpace(nome))
@@ -97,11 +103,12 @@ namespace TransportesApp.Domain.Entities
             AvaliacaoMedia = 5.0;
             DataCadastro = DateTime.UtcNow;
             AnoVeiculo = anoVeiculo;
-
-
-
-
+            TipoVeiculo = tipoVeiculo;
         }
+
+        // Correção feita pelo Admin (ex: motorista que se cadastrou como carro mas dirige moto) —
+        // ver AdminMotoristasController.
+        public void DefinirTipoVeiculo(TipoVeiculo tipoVeiculo) => TipoVeiculo = tipoVeiculo;
 
         // Edição manual pelo Admin (ver AdminMotoristasPage) — mesma validação básica do cadastro
         // (CPF válido, campos obrigatórios), mas sem travar o ano de fabricação pelo limite de
@@ -232,8 +239,8 @@ namespace TransportesApp.Domain.Entities
             MotivoBloqueio = null;
         }
 
-        // Categoria Executivo exige veículo com até 3 anos de fabricação (contando a partir do ano atual).
-        public bool VeiculoElegivelParaExecutivo() => AnoVeiculo is not null && DateTime.UtcNow.Year - AnoVeiculo.Value <= 3;
+        // Categoria Executivo é só de carro e exige veículo com até 3 anos de fabricação (contando a partir do ano atual).
+        public bool VeiculoElegivelParaExecutivo() => TipoVeiculo == TipoVeiculo.Carro && AnoVeiculo is not null && DateTime.UtcNow.Year - AnoVeiculo.Value <= 3;
 
         // Chamado pelo AvaliacaoService depois de qualquer avaliação nova de um cliente sobre esse
         // motorista — sempre a média recalculada de TODAS as avaliações recebidas, nunca incrementada.

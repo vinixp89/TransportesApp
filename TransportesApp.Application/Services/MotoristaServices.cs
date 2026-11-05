@@ -37,7 +37,8 @@ namespace TransportesApp.Application.Services
                 placaVeiculo: request.PlacaVeiculo,
                 modeloVeiculo: request.ModeloVeiculo,
                 endereco: endereco,
-                anoVeiculo: request.AnoVeiculo
+                anoVeiculo: request.AnoVeiculo,
+                tipoVeiculo: request.TipoVeiculo
             );
 
             await _motoristaRepository.AdicionarAsync(motorista);
@@ -139,6 +140,9 @@ namespace TransportesApp.Application.Services
             motorista.AtualizarDados(
                 request.Nome, request.Cnh, request.Cpf, request.Telefone,
                 request.PlacaVeiculo, request.ModeloVeiculo, request.AnoVeiculo, endereco);
+
+            if (request.TipoVeiculo is not null)
+                motorista.DefinirTipoVeiculo(request.TipoVeiculo.Value);
 
             await _motoristaRepository.AtualizarAsync(motorista);
 
@@ -406,7 +410,8 @@ namespace TransportesApp.Application.Services
                 motorista.TermosAceitos,
                 motorista.StatusConta,
                 motorista.BloqueadoAte,
-                motorista.MotivoBloqueio
+                motorista.MotivoBloqueio,
+                motorista.TipoVeiculo
             );
         }
     }

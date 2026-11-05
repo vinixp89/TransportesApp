@@ -53,6 +53,10 @@ services:
       Asaas__ApiKey: ${ASAAS_API_KEY}
       Asaas__Ambiente: ${ASAAS_AMBIENTE}
       Features__CarteiraMotoristaLiberada: ${FEATURE_CARTEIRA_MOTORISTA_LIBERADA}
+      # Última versão de cada app liberada no Google Play (versionCode) — dispara o pop-up "nova versão
+      # disponível" nos apps com versão menor (ver ConfigController.App). Vazio/ausente = sem aviso.
+      Apps__ClienteVersaoAtual: ${APP_CLIENTE_VERSAO_ATUAL:-0}
+      Apps__MotoristaVersaoAtual: ${APP_MOTORISTA_VERSAO_ATUAL:-0}
       # SMS de verificação de telefone (Motorista/Cliente, ver TwilioSmsService) — sem isso, ninguém
       # consegue passar da tela "Confirme seu telefone" e o app fica travado ali pra sempre.
       Twilio__AccountSid: ${TWILIO_ACCOUNT_SID}

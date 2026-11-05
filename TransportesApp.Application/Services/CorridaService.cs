@@ -61,7 +61,13 @@ namespace TransportesApp.Application.Services
             if (request.Categoria == CategoriaCorrida.Executivo && request.TipoConsumo == TipoConsumo.BeneficioPlano)
                 throw new InvalidOperationException("A categoria Executivo não está disponível para o benefício de corrida grátis do plano.");
 
-            var rota = await CalcularRotaAsync(request.Origem, request.Destino);
+            ValidarTipoVeiculo(request);
+
+            // Moto não tem corrida grátis do plano (decisão de produto) — só carro Normal.
+            if (request.TipoVeiculo == TipoVeiculo.Moto && request.TipoConsumo == TipoConsumo.BeneficioPlano)
+                throw new InvalidOperationException("O benefício de corrida grátis do plano não vale para corridas de moto.");
+
+            var rota = await CalcularRotaAsync(request.Origem, request.Destino, request.TipoVeiculo);
 
             // Se a corrida é por pacote, valida que o pacote existe, é do cliente, é da faixa certa
             // e ainda tem corridas disponíveis — só depois disso ele é efetivamente consumido.
@@ -83,7 +89,8 @@ namespace TransportesApp.Application.Services
                 faixa: rota.Faixa,
                 tipoConsumo: request.TipoConsumo,
                 pacoteCorridasId: request.PacoteCorridasId,
-                categoria: request.Categoria
+                categoria: request.Categoria,
+                tipoVeiculo: request.TipoVeiculo
             );
 
             await _corridaRepository.AdicionarAsync(corrida);
@@ -119,8 +126,10 @@ namespace TransportesApp.Application.Services
         // TipoReferenciaPagamento.Corrida).
         public async Task<IniciarCorridaAvulsaResponse> IniciarCorridaAvulsaAsync(CriarCorridasRequest request, Guid clienteId, string emailCliente)
         {
-            var rota = await CalcularRotaAsync(request.Origem, request.Destino);
-            var preco = rota.Faixa.ObterPreco(request.Categoria);
+            ValidarTipoVeiculo(request);
+
+            var rota = await CalcularRotaAsync(request.Origem, request.Destino, request.TipoVeiculo);
+            var preco = rota.Faixa.ObterPreco(request.Categoria, request.TipoVeiculo);
 
             var corrida = new Corrida(
                 clienteId: clienteId,
@@ -130,12 +139,13 @@ namespace TransportesApp.Application.Services
                 faixa: rota.Faixa,
                 tipoConsumo: TipoConsumo.Avulsa,
                 pacoteCorridasId: null,
-                categoria: request.Categoria
+                categoria: request.Categoria,
+                tipoVeiculo: request.TipoVeiculo
             );
 
             await _corridaRepository.AdicionarAsync(corrida);
 
-            var descricao = $"Corrida avulsa — faixa {rota.Faixa.Cor} ({request.Categoria})";
+            var descricao = $"Corrida avulsa — faixa {rota.Faixa.Cor} ({(request.TipoVeiculo == TipoVeiculo.Moto ? "moto" : request.Categoria.ToString())})";
             var pagamento = await _pagamentoService.IniciarPagamentoAsync(
                 clienteId, TipoReferenciaPagamento.Corrida, corrida.Id, preco, descricao, emailCliente);
 
@@ -148,8 +158,10 @@ namespace TransportesApp.Application.Services
         public async Task<IniciarCorridaAvulsaPixResponse> IniciarCorridaAvulsaPixAsync(
             CriarCorridasRequest request, Guid clienteId, string emailCliente, string cpfCliente)
         {
-            var rota = await CalcularRotaAsync(request.Origem, request.Destino);
-            var preco = rota.Faixa.ObterPreco(request.Categoria);
+            ValidarTipoVeiculo(request);
+
+            var rota = await CalcularRotaAsync(request.Origem, request.Destino, request.TipoVeiculo);
+            var preco = rota.Faixa.ObterPreco(request.Categoria, request.TipoVeiculo);
 
             var corrida = new Corrida(
                 clienteId: clienteId,
@@ -159,12 +171,13 @@ namespace TransportesApp.Application.Services
                 faixa: rota.Faixa,
                 tipoConsumo: TipoConsumo.Avulsa,
                 pacoteCorridasId: null,
-                categoria: request.Categoria
+                categoria: request.Categoria,
+                tipoVeiculo: request.TipoVeiculo
             );
 
             await _corridaRepository.AdicionarAsync(corrida);
 
-            var descricao = $"Corrida avulsa — faixa {rota.Faixa.Cor} ({request.Categoria})";
+            var descricao = $"Corrida avulsa — faixa {rota.Faixa.Cor} ({(request.TipoVeiculo == TipoVeiculo.Moto ? "moto" : request.Categoria.ToString())})";
             var pix = await _pagamentoService.IniciarPagamentoPixAsync(
                 clienteId, TipoReferenciaPagamento.Corrida, corrida.Id, preco, descricao, emailCliente, cpfCliente);
 
@@ -212,13 +225,18 @@ namespace TransportesApp.Application.Services
                 rota.Faixa.Cor,
                 rota.Faixa.ObterPreco(CategoriaCorrida.Normal),
                 rota.Faixa.ObterPreco(CategoriaCorrida.Executivo),
-                rota.Avisos.Count > 0 ? rota.Avisos : null
+                rota.Avisos.Count > 0 ? rota.Avisos : null,
+                rota.DistanciaKm <= FaixaDistancia.DistanciaMaximaMotoKm ? rota.Faixa.PrecoAvulsoMoto : null
             );
         }
 
         // Geocodifica origem/destino, calcula distância+duração via API de mapas e classifica a faixa.
         // Usado tanto por CriarAsync (que persiste) quanto por EstimarAsync (que só devolve o cálculo).
-        private async Task<RotaCalculada> CalcularRotaAsync(EnderecoRequest origemRequest, EnderecoRequest destinoRequest)
+        // tipoVeiculo Moto recusa distâncias acima de 40km (ver FaixaDistancia.ClassificarPorDistancia) —
+        // a estimativa usa o default (Carro) justamente pra poder mostrar o preço de carro mesmo quando
+        // a moto não atende aquela distância.
+        private async Task<RotaCalculada> CalcularRotaAsync(
+            EnderecoRequest origemRequest, EnderecoRequest destinoRequest, TipoVeiculo tipoVeiculo = TipoVeiculo.Carro)
         {
             var avisos = new List<string>();
 
@@ -233,7 +251,7 @@ namespace TransportesApp.Application.Services
             var (distanciaKm, duracaoMinutos) = await _mapsService.CalcularRotaAsync(
                 origem.Latitude, origem.Longitude, destino.Latitude, destino.Longitude);
 
-            var faixa = FaixaDistancia.ClassificarPorDistancia(distanciaKm);
+            var faixa = FaixaDistancia.ClassificarPorDistancia(distanciaKm, tipoVeiculo);
 
             return new RotaCalculada(origem, destino, distanciaKm, duracaoMinutos, faixa, avisos);
         }
@@ -275,10 +293,24 @@ namespace TransportesApp.Application.Services
                     $"Este pacote é da categoria {pacote.Categoria}, mas a corrida solicitada é {request.Categoria}. " +
                     "Use um pacote da categoria correta ou solicite como corrida avulsa.");
 
+            if (pacote.TipoVeiculo != request.TipoVeiculo)
+                throw new InvalidOperationException(
+                    $"Este pacote é de {DescreverVeiculo(pacote.TipoVeiculo)}, mas a corrida solicitada é de {DescreverVeiculo(request.TipoVeiculo)}. " +
+                    "Use um pacote do mesmo tipo de veículo ou solicite como corrida avulsa.");
+
             if (!pacote.TemCorridaDisponivel)
                 throw new InvalidOperationException("Este pacote não tem corridas disponíveis. Compre um novo pacote ou solicite como corrida avulsa.");
 
             return pacote;
+        }
+
+        private static string DescreverVeiculo(TipoVeiculo tipo) => tipo == TipoVeiculo.Moto ? "moto" : "carro";
+
+        // Moto é só da categoria Normal (Executivo é exclusivo de carro).
+        private static void ValidarTipoVeiculo(CriarCorridasRequest request)
+        {
+            if (request.TipoVeiculo == TipoVeiculo.Moto && request.Categoria == CategoriaCorrida.Executivo)
+                throw new InvalidOperationException("A categoria Executivo é só para carro.");
         }
 
         public async Task<CorridaResponse?> ObterPorIdAsync(Guid id)
@@ -331,7 +363,8 @@ namespace TransportesApp.Application.Services
                     response.ValorMotorista,
                     response.TipoConsumo,
                     response.Status,
-                    response.DataSolicitacao
+                    response.DataSolicitacao,
+                    response.TipoVeiculo
                 );
             });
         }
@@ -373,9 +406,15 @@ namespace TransportesApp.Application.Services
         {
             var corridas = await _corridaRepository.ListarAsync();
             var elegivelParaExecutivo = await _assinaturaMotoristaExecutivoService.EstaElegivelAsync(motoristaId);
+            var motorista = await _motoristaRepository.ObterPorIdAsync(motoristaId);
+
+            // Motorista de moto só vê corrida de moto e o de carro só de carro — motorista não
+            // encontrado cai em Carro (mesmo default de quem se cadastrou antes da moto existir).
+            var tipoVeiculoMotorista = motorista?.TipoVeiculo ?? TipoVeiculo.Carro;
 
             return corridas
                 .Where(c => c.Status == StatusCorrida.Solicitada)
+                .Where(c => c.TipoVeiculo == tipoVeiculoMotorista)
                 .Where(c => c.Categoria != CategoriaCorrida.Executivo || elegivelParaExecutivo)
                 .OrderByDescending(c => c.DataSolicitacao)
                 .Select(c => MapearParaResponse(c));
@@ -404,6 +443,11 @@ namespace TransportesApp.Application.Services
 
             if (motorista is null)
                 throw new InvalidOperationException("Motorista não encontrado.");
+
+            if (corrida.TipoVeiculo != motorista.TipoVeiculo)
+                throw new InvalidOperationException(corrida.TipoVeiculo == TipoVeiculo.Moto
+                    ? "Essa corrida é de moto — só motoristas de moto podem aceitar."
+                    : "Essa corrida é de carro — só motoristas de carro podem aceitar.");
 
             if (corrida.Categoria == CategoriaCorrida.Executivo && !await _assinaturaMotoristaExecutivoService.EstaElegivelAsync(motoristaId))
                 throw new InvalidOperationException("Essa corrida é da categoria Executivo — só motoristas com assinatura Executivo ativa e veículo elegível (até 3 anos) podem aceitar.");
@@ -488,7 +532,7 @@ namespace TransportesApp.Application.Services
                 // (85% do valor de referência da faixa), independente de a corrida ter sido paga pelo
                 // cliente, consumida de um pacote ou de uma corrida promocional/grátis: quem dirigiu
                 // recebe normalmente, o custo de uma corrida grátis é da empresa, não do motorista.
-                var valorReferenciaFinal = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria);
+                var valorReferenciaFinal = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria, corrida.TipoVeiculo);
                 var valorMotoristaFinal = Math.Round(valorReferenciaFinal * PercentualMotorista, 2);
                 await _carteiraMotoristaService.CreditarPorCorridaAsync(
                     corrida.MotoristaId.Value, valorMotoristaFinal, $"Corrida finalizada ({corrida.FaixaContratada})");
@@ -638,7 +682,7 @@ namespace TransportesApp.Application.Services
             // ValorReferencia não é gravado na corrida — é derivado da faixa contratada (e da categoria)
             // na hora de responder, pra sempre refletir a tabela de preços atual em vez de um valor que
             // poderia ficar desatualizado.
-            var valorReferencia = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria);
+            var valorReferencia = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria, corrida.TipoVeiculo);
             var valorMotorista = Math.Round(valorReferencia * PercentualMotorista, 2);
 
             return new CorridaResponse(
@@ -656,7 +700,8 @@ namespace TransportesApp.Application.Services
                 corrida.TipoConsumo,
                 corrida.Status,
                 corrida.DataSolicitacao,
-                avisosEndereco
+                avisosEndereco,
+                corrida.TipoVeiculo
             );
         }
 

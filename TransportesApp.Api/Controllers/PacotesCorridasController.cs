@@ -25,9 +25,11 @@ namespace TransportesApp.Api.Controllers
         // usado pra montar a tela "pacotes disponíveis" antes de comprar. Não depende de cliente
         // cadastrado, só de estar autenticado (herda o [Authorize] da classe).
         [HttpGet("catalogo")]
-        public IActionResult Catalogo([FromQuery] CategoriaCorrida categoria = CategoriaCorrida.Normal)
+        public IActionResult Catalogo(
+            [FromQuery] CategoriaCorrida categoria = CategoriaCorrida.Normal,
+            [FromQuery] TipoVeiculo tipoVeiculo = TipoVeiculo.Carro)
         {
-            var catalogo = _pacoteCorridasService.ObterCatalogo(categoria);
+            var catalogo = _pacoteCorridasService.ObterCatalogo(categoria, tipoVeiculo);
             return Ok(catalogo);
         }
 
