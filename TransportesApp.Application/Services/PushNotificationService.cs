@@ -32,6 +32,28 @@ namespace TransportesApp.Application.Services
             await _pushTokenRepository.AtualizarAsync(existente);
         }
 
+        // Push pra usuários específicos (ex: motoristas perto de uma corrida Executivo, ver
+        // DespachoCorridasExecutivoService) — altaPrioridade pede entrega imediata mesmo com o
+        // celular em repouso. Devolve quantos tokens receberam.
+        public async Task<int> EnviarParaUsuariosAsync(
+            IReadOnlyCollection<Guid> usuarioIds, TipoUsuario papel, string titulo, string mensagem, bool altaPrioridade = false)
+        {
+            if (usuarioIds.Count == 0)
+                return 0;
+
+            var tokens = await _pushTokenRepository.ListarTokensPorUsuariosAsync(usuarioIds, papel);
+
+            if (tokens.Count == 0)
+                return 0;
+
+            var tokensInvalidos = await _expoPushGateway.EnviarAsync(tokens, titulo, mensagem, altaPrioridade);
+
+            foreach (var tokenInvalido in tokensInvalidos)
+                await _pushTokenRepository.RemoverAsync(tokenInvalido);
+
+            return tokens.Count - tokensInvalidos.Count;
+        }
+
         public async Task<int> EnviarBroadcastAsync(TipoUsuario papel, string titulo, string mensagem)
         {
             var tokens = await _pushTokenRepository.ListarTokensPorPapelAsync(papel);

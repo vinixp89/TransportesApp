@@ -458,6 +458,9 @@ namespace TransportesApp.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("AvisosMotoristasEnviados")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Categoria")
                         .HasColumnType("integer");
 
@@ -466,6 +469,9 @@ namespace TransportesApp.Infrastructure.Migrations
 
                     b.Property<string>("CodigoConfirmacao")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("DataDisponivel")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("DataFinalizacao")
                         .HasColumnType("timestamp with time zone");
@@ -487,6 +493,9 @@ namespace TransportesApp.Infrastructure.Migrations
 
                     b.Property<Guid?>("PacoteCorridasId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("PercentualMotorista")
+                        .HasColumnType("numeric");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");

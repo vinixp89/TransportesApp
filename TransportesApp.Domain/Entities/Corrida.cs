@@ -32,6 +32,23 @@ namespace TransportesApp.Domain.Entities
         // que o motorista errado (ou ninguém) inicie a corrida de outra pessoa.
         public string? CodigoConfirmacao { get; private set; }
 
+        // Despacho das corridas Executivo (ver DespachoCorridasExecutivoService): DataDisponivel é o
+        // momento em que a corrida ficou visível pros motoristas (Solicitada — pagamento confirmado, ou
+        // direto na criação em corrida por pacote/benefício) e serve de relógio pro aceite rápido e pro
+        // cancelamento por falta de motorista. AvisosMotoristasEnviados conta os push já mandados
+        // (1 = aviso inicial, 2 = reenvio). null/0 em corridas anteriores a esse recurso.
+        public DateTime? DataDisponivel { get; private set; }
+        public int AvisosMotoristasEnviados { get; private set; }
+
+        // Percentual do valor da corrida que fica com o motorista, gravado na hora do aceite — 90% se
+        // for Executivo aceita dentro de JanelaAceiteRapido, 85% no resto. null em corridas antigas
+        // (e nunca aceitas), que caem no padrão (ver ObterPercentualMotorista).
+        public decimal? PercentualMotorista { get; private set; }
+
+        public const decimal PercentualPadraoMotorista = 0.85m;
+        public const decimal PercentualAceiteRapido = 0.90m;
+        public static readonly TimeSpan JanelaAceiteRapido = TimeSpan.FromSeconds(60);
+
         protected Corrida() { }
 
 
@@ -65,6 +82,7 @@ namespace TransportesApp.Domain.Entities
             // direto pra Solicitada, como sempre foi.
             Status = tipoConsumo == TipoConsumo.Avulsa ? StatusCorrida.AguardandoPagamento : StatusCorrida.Solicitada;
             DataSolicitacao = DateTime.UtcNow;
+            DataDisponivel = Status == StatusCorrida.Solicitada ? DataSolicitacao : null;
 
 
         }
@@ -78,6 +96,7 @@ namespace TransportesApp.Domain.Entities
                 throw new InvalidOperationException("Essa corrida não está aguardando pagamento.");
 
             Status = StatusCorrida.Solicitada;
+            DataDisponivel = DateTime.UtcNow;
         }
 
         // Chamado por PagamentoService quando o Mercado Pago recusa/cancela o pagamento — a corrida
@@ -96,12 +115,31 @@ namespace TransportesApp.Domain.Entities
 
             if (Status != StatusCorrida.Solicitada)
                 throw new InvalidOperationException("Só é possível atribuir  motorista a uma corrida solicitada");
+            PercentualMotorista = ObterPercentualMotorista(DateTime.UtcNow);
             MotoristaId = motoristaId;
             CodigoConfirmacao = GerarCodigoConfirmacao();
             Status = StatusCorrida.Confirmada;
 
 
         }
+
+        // Percentual do motorista: o gravado no aceite, ou — enquanto a corrida ainda espera motorista —
+        // o que ele ganharia se aceitasse agora (90% dentro da janela do Executivo, 85% fora dela).
+        public decimal ObterPercentualMotorista(DateTime agora)
+        {
+            if (PercentualMotorista is not null)
+                return PercentualMotorista.Value;
+
+            if (Status == StatusCorrida.Solicitada
+                && Categoria == CategoriaCorrida.Executivo
+                && DataDisponivel is not null
+                && agora - DataDisponivel.Value <= JanelaAceiteRapido)
+                return PercentualAceiteRapido;
+
+            return PercentualPadraoMotorista;
+        }
+
+        public void RegistrarAvisoMotoristas() => AvisosMotoristasEnviados++;
 
         // O motorista só consegue iniciar a viagem informando o código de 4 dígitos que o cliente
         // vê no app dele — confirma que é o motorista certo, na frente do cliente certo.

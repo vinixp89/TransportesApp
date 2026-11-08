@@ -20,12 +20,12 @@ namespace TransportesApp.Infrastructure.Gateways
             _httpClient = httpClient;
         }
 
-        public async Task<IReadOnlyList<string>> EnviarAsync(IReadOnlyList<string> tokens, string titulo, string mensagem)
+        public async Task<IReadOnlyList<string>> EnviarAsync(IReadOnlyList<string> tokens, string titulo, string mensagem, bool altaPrioridade = false)
         {
             var tokensInvalidos = new List<string>();
 
             foreach (var lote in tokens.Chunk(TamanhoLote))
-                tokensInvalidos.AddRange(await EnviarLoteAsync(lote, titulo, mensagem));
+                tokensInvalidos.AddRange(await EnviarLoteAsync(lote, titulo, mensagem, altaPrioridade));
 
             return tokensInvalidos;
         }
@@ -35,9 +35,9 @@ namespace TransportesApp.Infrastructure.Gateways
         // broadcast inteiro com PUSH_TOO_MANY_EXPERIENCE_IDS. Quando isso acontece, a própria
         // resposta do Expo diz quais tokens pertencem a qual projeto (details), então reenviamos um
         // grupo por vez — cada grupo já é de um projeto só, então não cai nesse erro de novo.
-        private async Task<IReadOnlyList<string>> EnviarLoteAsync(string[] lote, string titulo, string mensagem)
+        private async Task<IReadOnlyList<string>> EnviarLoteAsync(string[] lote, string titulo, string mensagem, bool altaPrioridade)
         {
-            var mensagens = lote.Select(token => new ExpoMensagem(token, titulo, mensagem, "default")).ToArray();
+            var mensagens = lote.Select(token => new ExpoMensagem(token, titulo, mensagem, "default", altaPrioridade ? "high" : null)).ToArray();
 
             using var response = await _httpClient.PostAsJsonAsync("/--/api/v2/push/send", mensagens, JsonOpcoes);
             var corpoResposta = await response.Content.ReadAsStringAsync();
@@ -53,7 +53,7 @@ namespace TransportesApp.Infrastructure.Gateways
                     var invalidosDosGrupos = new List<string>();
 
                     foreach (var grupo in grupos)
-                        invalidosDosGrupos.AddRange(await EnviarLoteAsync(grupo, titulo, mensagem));
+                        invalidosDosGrupos.AddRange(await EnviarLoteAsync(grupo, titulo, mensagem, altaPrioridade));
 
                     return invalidosDosGrupos;
                 }
@@ -92,9 +92,13 @@ namespace TransportesApp.Infrastructure.Gateways
             }
         }
 
-        private static readonly JsonSerializerOptions JsonOpcoes = new(JsonSerializerDefaults.Web);
+        private static readonly JsonSerializerOptions JsonOpcoes = new(JsonSerializerDefaults.Web)
+        {
+            // Priority só vai no JSON quando preenchido (null = padrão do Expo).
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
 
-        private sealed record ExpoMensagem(string To, string Title, string Body, string Sound);
+        private sealed record ExpoMensagem(string To, string Title, string Body, string Sound, string? Priority = null);
 
         private sealed record ExpoRespostaEnvio(
             [property: JsonPropertyName("data")] ExpoTicket[]? Data

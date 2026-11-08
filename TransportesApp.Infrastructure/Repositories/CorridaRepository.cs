@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using TransportesApp.Domain.Entities;
+using TransportesApp.Domain.Enums;
 using TransportesApp.Domain.Interfaces;
 using TransportesApp.Infrastructure.Data;
 
@@ -33,6 +34,13 @@ namespace TransportesApp.Infrastructure.Repositories
         public async Task<IEnumerable<Corrida>> ListarAsync()
         {
             return await _context.Corridas.ToListAsync();
+        }
+
+        public async Task<IEnumerable<Corrida>> ListarSolicitadasPorCategoriaAsync(CategoriaCorrida categoria)
+        {
+            return await _context.Corridas
+                .Where(c => c.Status == StatusCorrida.Solicitada && c.Categoria == categoria)
+                .ToListAsync();
         }
 
         public async Task<IEnumerable<Corrida>> ListarPorMotoristaIdAsync(Guid motoristaId)

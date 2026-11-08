@@ -10,5 +10,6 @@ namespace TransportesApp.Domain.Interfaces
         Task AtualizarAsync(PushToken pushToken);
         Task RemoverAsync(string token);
         Task<IReadOnlyList<string>> ListarTokensPorPapelAsync(TipoUsuario papel);
+        Task<IReadOnlyList<string>> ListarTokensPorUsuariosAsync(IReadOnlyCollection<Guid> usuarioIds, TipoUsuario papel);
     }
 }

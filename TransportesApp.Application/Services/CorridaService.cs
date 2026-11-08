@@ -543,7 +543,7 @@ namespace TransportesApp.Application.Services
                 // cliente, consumida de um pacote ou de uma corrida promocional/grátis: quem dirigiu
                 // recebe normalmente, o custo de uma corrida grátis é da empresa, não do motorista.
                 var valorReferenciaFinal = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria, corrida.TipoVeiculo);
-                var valorMotoristaFinal = Math.Round(valorReferenciaFinal * PercentualMotorista, 2);
+                var valorMotoristaFinal = Math.Round(valorReferenciaFinal * (corrida.PercentualMotorista ?? PercentualMotorista), 2);
                 await _carteiraMotoristaService.CreditarPorCorridaAsync(
                     corrida.MotoristaId.Value, valorMotoristaFinal, $"Corrida finalizada ({corrida.FaixaContratada})");
 
@@ -693,7 +693,7 @@ namespace TransportesApp.Application.Services
             // na hora de responder, pra sempre refletir a tabela de preços atual em vez de um valor que
             // poderia ficar desatualizado.
             var valorReferencia = FaixaDistancia.ObterPorCor(corrida.FaixaContratada).ObterPreco(corrida.Categoria, corrida.TipoVeiculo);
-            var valorMotorista = Math.Round(valorReferencia * PercentualMotorista, 2);
+            var valorMotorista = Math.Round(valorReferencia * corrida.ObterPercentualMotorista(DateTime.UtcNow), 2);
 
             return new CorridaResponse(
                 corrida.Id,

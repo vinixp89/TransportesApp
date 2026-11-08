@@ -42,6 +42,14 @@ namespace TransportesApp.Infrastructure.Repositories
             await _context.SaveChangesAsync();
         }
 
+        public async Task<IReadOnlyList<string>> ListarTokensPorUsuariosAsync(IReadOnlyCollection<Guid> usuarioIds, TipoUsuario papel)
+        {
+            return await _context.PushTokens
+                .Where(p => p.Papel == papel && usuarioIds.Contains(p.UsuarioId))
+                .Select(p => p.Token)
+                .ToListAsync();
+        }
+
         public async Task<IReadOnlyList<string>> ListarTokensPorPapelAsync(TipoUsuario papel)
         {
             return await _context.PushTokens

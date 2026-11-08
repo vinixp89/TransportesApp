@@ -97,11 +97,13 @@ namespace TransportesApp.Api
             builder.Services.AddScoped<NotificacaoService>();
             builder.Services.AddScoped<CarteiraMotoristaService>();
             builder.Services.AddScoped<BonusMotoristaService>();
+            builder.Services.AddScoped<DespachoCorridasExecutivoService>();
             builder.Services.AddScoped<EnderecoAutocompleteService>();
             builder.Services.AddScoped<VerificacaoSmsService>();
             builder.Services.AddScoped<MensagemChatService>();
             builder.Services.AddScoped<MensagemSuporteService>();
             builder.Services.AddHostedService<LimpezaCadastrosOrfaosService>();
+            builder.Services.AddHostedService<DespachoCorridasExecutivoBackgroundService>();
             builder.Services.AddScoped<AvaliacaoService>();
             builder.Services.AddScoped<VerificacaoFacialService>();
             builder.Services.AddScoped<AvisoService>();
