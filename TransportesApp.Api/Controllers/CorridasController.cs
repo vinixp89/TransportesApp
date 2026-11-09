@@ -211,8 +211,15 @@ namespace TransportesApp.Api.Controllers
             if (motorista is null)
                 return BadRequest(new { mensagem = "Cadastre-se como motorista antes de ver corridas pendentes." });
 
-            var corridas = await _corridaService.ListarPendentesAsync(motorista.Id);
-            return Ok(corridas);
+            try
+            {
+                var corridas = await _corridaService.ListarPendentesAsync(motorista.Id);
+                return Ok(corridas);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { mensagem = ex.Message });
+            }
         }
 
         // Corrida em andamento do usuário logado (null se não tiver nenhuma): motorista vê a que

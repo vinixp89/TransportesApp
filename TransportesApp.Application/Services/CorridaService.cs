@@ -412,10 +412,18 @@ namespace TransportesApp.Application.Services
             // encontrado cai em Carro (mesmo default de quem se cadastrou antes da moto existir).
             var tipoVeiculoMotorista = motorista?.TipoVeiculo ?? TipoVeiculo.Carro;
 
-            // Sem as 3 fotos de verificação (selfie, veículo e placa) o motorista não vê corrida
-            // nenhuma — ver AtribuirMotoristaAsync, que recusa com a mensagem explicando.
-            if (motorista is null || !motorista.FotosBasicasEnviadas)
+            if (motorista is null)
                 return Enumerable.Empty<CorridaResponse>();
+
+            // Sem as 3 fotos de verificação (selfie, veículo e placa) o motorista não vê corrida
+            // nenhuma — ver AtribuirMotoristaAsync, que recusa na hora de aceitar. Recusa com mensagem
+            // (em vez de devolver a lista vazia) porque o app antigo mostra a mensagem de erro do
+            // servidor na Home, e assim o motorista entende o motivo mesmo sem a tela de envio de fotos,
+            // que só existe nas versões novas do app.
+            if (!motorista.FotosBasicasEnviadas)
+                throw new InvalidOperationException(
+                    "Pra receber corridas, envie suas fotos de verificação (selfie, veículo e placa). " +
+                    "Atualize o app Vai na Boa Motorista na Play Store: a versão nova tem a tela de envio das fotos.");
 
             return corridas
                 .Where(c => c.Status == StatusCorrida.Solicitada)
